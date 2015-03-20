@@ -1,0 +1,24 @@
+#debug files
+Debug
+
+*.DS_store
+
+#atmel studio shit
+*.atsln
+*.atsuo
+*.cproj
+
+
+
+
+#object files
+*.o
+
+#libraries
+*.lib
+*.a
+
+#executables
+*.exe
+*.out
+*.app
