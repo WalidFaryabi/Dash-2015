@@ -22,7 +22,7 @@ static void rotaryEncoderInterruptFunction() {
 		rotary_ccw = true;
 	}
 }
-tgg
+
 
 void dash_io_init() {
 	// Husk WPEN bit for å kunne skrive til OER etc .. side 737 ( Disabled by default)
@@ -46,8 +46,6 @@ void dash_io_init() {
 	pio_inputPulldown(DETECT_USB_PIO,DETECT_USB_PIN,PULLDOWN);
 	pio_disableOutput(DETECT_USB_PIO,DETECT_USB_PIN);
 	pio_inputDebounce(DETECT_USB_PIO,DETECT_USB_PIN,3000,DEBOUNCE);
-	// Double check if pulldown on usb is needed
-	//pio_input_pulldown(DETECT_USB_PIO,DETECT_USB_PIN);
 	
 	pio_disableOutput(ROT_PUSH3_PIO,ROT_PUSH3_PIN);
 	pio_disableOutput(ROT_A_PIO,ROT_A_PIN);
@@ -56,7 +54,7 @@ void dash_io_init() {
 	//Interrupts on rotary 
 	//pio_enableInterrupt(ROT_B_PIO,ROT_B_PIN, RISING_EDGE,rotaryEncoderInterruptFunction);
 	pio_enableInterrupt(ROT_B_PIO,ROT_B_PIN, FALLING_EDGE,rotaryEncoderInterruptFunction);
-	PIOA->PIO_ISR;
+	PIOB->PIO_ISR;
 }
 
 
