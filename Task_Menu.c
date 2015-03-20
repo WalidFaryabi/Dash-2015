@@ -105,28 +105,32 @@ const char menu_001[] = "Speed";								// 1
 const char menu_002[] = "System Monitor";						// 2
 const char menu_003[] = "Temperatures and voltages";			// 3
 
-const char menu_200[] = "Adjustment menu";						// 4
-const char menu_201[] = "Device Status";						// 5
-const char menu_202[] = "Play snake";							// 6
-const char menu_203[] = "Torque pedal calibration";				// 7
-const char menu_204[] = "ECU Options";							// 8
+const char menu_200[] = "MAIN MENU";							// 4
+const char menu_201[] = "DEVICE STATUS";						// 5
+const char menu_202[] = "STEERING CALIBRATION";					// 6
+const char menu_203[] = "TORQUE CALIBRATION";					// 7
+const char menu_204[] = "ECU SETTINGS";							// 8
+const char menu_205[] = "IMU SETTINGS";							// 9
+const char menu_206[] = "SNAKE";								// 10
+const char menu_207[] = "EMPTY";								// 11
+const char menu_208[] = "EMPTY";								// 12
 
-const char menu_300[] = "Device Status";						// 9
-const char menu_400[] = "KERS settings";						// 10
-const char menu_500[] = "Trq. Enc. Calibration";				// 11
+const char menu_300[] = "DEVICE STATUS";						// 13
+const char menu_400[] = "KERS settings";						// 14
+const char menu_500[] = "Trq. Enc. Calibration";				// 15
 
-const char menu_600[] = "ECU Options";							// 12			
-const char menu_601[] = "Max torque";							// 13
-const char menu_602[] = "P term";								// 14
-const char menu_603[] = "D term";								// 15
-const char menu_604[] = "I term";								// 16
+const char menu_600[] = "ECU OPTIONS";							// 16			
+const char menu_601[] = "MAX TORQUE";							// 17
+const char menu_602[] = "P TERM";								// 18
+const char menu_603[] = "D TERM";								// 19
+const char menu_604[] = "I TERM";								// 20
 
-const char menu_605[] = "ECU T";								// 17
-const char menu_606[] = "ECU R";								// 18
+const char menu_605[] = "ECU T";								// 21
+const char menu_606[] = "ECU R";								// 22
 
-const char menu_900[] = "Drive enable message";					// 19
-const char menu_901[] = "Launch control element";				
-const char menu_902[] = "Error element";
+const char menu_900[] = "Drive enable message";					// 23
+const char menu_901[] = "Launch control element";				// 24
+const char menu_902[] = "Error element";						// 25
 
 MenuEntry menu[] = {
 	// text  num,   U   D   L   R  Push Pos  cur_menu			current_setting				Rotaryfunction
@@ -136,29 +140,34 @@ MenuEntry menu[] = {
 	{menu_002, 1,	2,	2,	3,	0,	2,  1,  SYSTEM_MONITOR,		NO_SETTING,					0 },				//2
 	{menu_003, 1,	3,	3,	3,	2,	3,  1,	TEMP_VOLT,			NO_SETTING,					0 },				//3
 		
-	{menu_200, 5,	4,	4,	4,	4,	4,  0,	ADJUSTMENT_MAIN,	NO_SETTING,					0},					//4  Adjustment menu
-	{menu_201, 5,	5,	6,	0,	9,  5,	1,  ADJUSTMENT_MAIN,	NO_SETTING,					0},					//5	 Device Status  
-	{menu_202, 5,	5,	7,	0,	19, 6,	2,  ADJUSTMENT_MAIN,	NO_SETTING,					0},					//6  Play Snake // Steer calib
-	{menu_203, 5,	6,	8,	0,	11, 7,	3,  ADJUSTMENT_MAIN,	NO_SETTING,					0},					//7	 Torque Pedal Calibration
-	{menu_204, 5,	7,	8,	0,	13, 8,	4,  ADJUSTMENT_MAIN,	NO_SETTING,					0},					//8  ECU options
+	{menu_200, 9,	4,	4,	4,	4,	4,  0,	MAIN_MENU,			NO_SETTING,					0},					//4  main menu
+	{menu_201, 9,	5,	6,	0,	9,  13,	1,  MAIN_MENU,			NO_SETTING,					0},					//5	 Device Status  
+	{menu_202, 9,	5,	7,	0,	10, 19,	2,  MAIN_MENU,			NO_SETTING,					0},					//6  Steer calib
+	{menu_203, 9,	6,	8,	0,	11, 20,	3,  MAIN_MENU,			NO_SETTING,					0},					//7	 Torque Pedal Calibration
+	{menu_204, 9,	7,	8,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0},					//8  ECU Options
+	{menu_205, 9,	9,	10,	0,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0},					//9  IMU options
+	{menu_206, 9,	9,	11,	0,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0},					//10 Snake
+	{menu_207, 9,	10,	12,	0,	11, 11,	7,  MAIN_MENU,			NO_SETTING,					0},					//11 placeholder options
+	{menu_208, 9,	11,	12,	0,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0},					//12 placeholder options
 		
-	{menu_300, 1,	9,	9,	5,	9,  9,	1,  DEVICE_STATUS,		NO_SETTING,					0},					//9  Device status Screen
 		
-	{menu_400, 1,	10,	10,	6,	10, 10,	1,  VARIABLE,			KERS_SETTING,				0},					//10  KERS adjustment screen
-	
-	{menu_500, 1,	11,	11,	11,	11, 11,	0,  TRQ_CALIB,			NO_SETTING,					0},					//11 Torque calibration screen
-	
-	{menu_601, 4,	12,	13,	8,	12, 12,	0,  ECU_OPTIONS,		TORQUE_SETTING,				slider_torque_update},	//12 Max torque slider
-	{menu_602, 4,	12,	14,	8,	13, 13,	1,  ECU_OPTIONS,		ECU_P_SETTING,				slider_P_term_update},	//13 ECU P slider
-	{menu_603, 4,	13,	15,	8,	14, 14,	2,  ECU_OPTIONS,		ECU_D_SETTING,				slider_D_term_update},	//14 ECU D slider
-	{menu_604, 4,	14,	15,	8,	15, 15,	3,  ECU_OPTIONS,		ECU_I_SETTING,				slider_I_term_update},	//15 ECU I slider
 
-	
-	{menu_900, 1,	16,	16,	16,	16,  16, 0,  PERSISTENT_MSG,	NO_SETTING,					0},					//16 Drive enable message
-	{menu_901, 1,	17,	17,	17,	17,  17, 0,  LC_HANDLER,		NO_SETTING,					0},					//17 LC handler
-	{menu_902, 1,	18,	18,	18,	18,  18, 0,  ERROR_HANDLER,		NO_SETTING,					0},					//18 Error handler
-	{"snake",  1,	19,	19,	19,	19,  19, 0,  SNAKE_GAME,		NO_SETTING,					0},					//19 Play snake
-	{"SteeCal",1,	20,	20,	20,	20,  20, 0,  STEER_CALIB,		NO_SETTING,					0}					//20 Steer calib
+		
+	{menu_400, 1,	10,	10,	6,	10, 10,	1,  VARIABLE,			KERS_SETTING,				0},					//13  KERS adjustment screen
+		
+	{menu_300, 1,	14,	14,	5,	14, 14,	1,  DEVICE_STATUS,		NO_SETTING,					0},					//14  Device status Screen
+		
+	{menu_900, 1,	15,	15,	15,	15,  15, 0, PERSISTENT_MSG,		NO_SETTING,					0},					//15 Drive enable message
+	{menu_901, 1,	16,	16,	16,	16,  16, 0, LC_HANDLER,			NO_SETTING,					0},					//16 LC handler
+	{menu_902, 1,	17,	17,	17,	17,  17, 0, ERROR_HANDLER,		NO_SETTING,					0},					//17 Error handler
+	{"snake",  1,	18,	18,	18,	18,  18, 0, SNAKE_GAME,			NO_SETTING,					0},					//18 Play snake
+	{"SteerCal",1,	19,	19,	19,	19,  19, 0, STEER_CALIB,		NO_SETTING,					0},					//19 Steer calib
+	{menu_500, 1,	20,	20,	20,	20,	 20, 0, TRQ_CALIB,			NO_SETTING,					0},					//20 Torque calibration screen
+		
+	{menu_601, 4,	21,	22,	8,	21, 21,	0,  ECU_OPTIONS,		TORQUE_SETTING,				slider_torque_update},	//21 Max torque slider
+	{menu_602, 4,	21,	23,	8,	22, 22,	1,  ECU_OPTIONS,		ECU_P_SETTING,				slider_P_term_update},	//22 ECU P slider
+	{menu_603, 4,	22,	24,	8,	23, 23,	2,  ECU_OPTIONS,		ECU_D_SETTING,				slider_D_term_update},	//23 ECU D slider
+	{menu_604, 4,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		ECU_I_SETTING,				slider_I_term_update}	//24 ECU I slider
 	
 };
 
@@ -348,7 +357,7 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, ECarState
 		}
 		break;
 		
-		case ADJUSTMENT_MAIN:
+		case MAIN_MENU:
 		DrawAdjustmentMenu();
 		break;
 		
@@ -455,14 +464,17 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 		NavigateMenu(device_state, var,error, sensor_real,car_state);
 		btn->navigation = NAV_DEFAULT;
 	}
+	
 	// If changing a variable and acknowledge button is pressed the selection will be confirmed,
 	// the value sent by CAN.
 	else if (btn->btn_type == DASH_ACK) {
 		// Check if there is an error first.. Since acknowledge button is used for both variables and errors / faults
+		
+		// This is for choosing a selected menu
+		selected = menu[selected].push_button;
 		switch (menu[selected].current_menu) {
 			
 			case ERROR_HANDLER:
-
 				//can_sendMessage(CAN0,ackMsg);
 				selected = 0; // Return to main menu
 			break;
@@ -572,7 +584,6 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError *error, SensorRealValue *sensor_real, ECarState *car_state) {
 	
 	switch (btn.navigation) {
-		
 		case UP:
 			switch (menu[selected].current_menu) {
 				case ECU_OPTIONS:
@@ -620,7 +631,7 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 			selected = menu[selected].right;
 			break;
 	}
-	
+
 	switch (menu[selected].current_menu) {
 		case MAIN_SCREEN:
 		DrawMainScreen(sensor_real,20,20,device_state, car_state);
@@ -634,7 +645,7 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 		case TEMP_VOLT:
 		DrawTempAndVoltScreen(sensor_real);
 		break;
-		case ADJUSTMENT_MAIN:
+		case MAIN_MENU:
 		DrawAdjustmentMenu();
 		break;
 		case DEVICE_STATUS:
@@ -874,8 +885,8 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				trq_calib_timed_out = false;
 				trq_calib_state = TRQ_CALIBRATION_WAITING_MAX_CONFIRMATION;
 				//Send CAN message that max is being calibrated
-				can_freeRTOSSendMessage(CAN0,TorquePedalCalibrationMax);
-				can_freeRTOSSendMessage(CAN1,TorquePedalCalibrationMax);
+				//can_freeRTOSSendMessage(CAN0,TorquePedalCalibrationMax);
+				//can_freeRTOSSendMessage(CAN1,TorquePedalCalibrationMax);
 				xTimerReset(calibrationTimer,2/portTICK_RATE_MS);
 			}
 			break;
