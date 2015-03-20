@@ -53,8 +53,8 @@ void dash_io_init() {
 
 	//Interrupts on rotary 
 	//pio_enableInterrupt(ROT_B_PIO,ROT_B_PIN, RISING_EDGE,rotaryEncoderInterruptFunction);
-	pio_enableInterrupt(ROT_B_PIO,ROT_B_PIN, FALLING_EDGE,rotaryEncoderInterruptFunction);
-	PIOB->PIO_ISR;
+	//pio_enableInterrupt(ROT_B_PIO,ROT_B_PIN, FALLING_EDGE,rotaryEncoderInterruptFunction);
+	//PIOB->PIO_ISR;
 }
 
 

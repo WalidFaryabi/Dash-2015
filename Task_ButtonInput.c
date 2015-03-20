@@ -8,6 +8,70 @@
 volatile bool rotary_cw = false;
 volatile bool rotary_ccw = false;
 
+
+void Task_RotaryEncoder() {
+	uint8_t rot_phase_a = 0;
+	uint8_t rot_phase_b = 0;
+	uint8_t rot_state = 0;
+	uint8_t prev_rot_state = 0;
+	while(1) {
+		//Check rotary encoder for new input
+		// ^ XOR . true when inputs differ
+		rot_phase_a = pio_readPin(ROT_A_PIO, ROT_A_PIN);
+		rot_phase_b = pio_readPin(ROT_B_PIO, ROT_B_PIN);
+		rot_state = (rot_phase_a << 1) | rot_phase_b;
+		switch (rot_state) {
+			case 0b00:
+			if (prev_rot_state == 0b10) {
+				// CCW Rotation
+				rotary_ccw = true;
+			}
+			else if (prev_rot_state == 0b01) {
+				// CW Rotation
+				rotary_cw = true;
+			}
+			break;
+			case 0b01:
+			if (prev_rot_state == 0b00) {
+				// CCW Rotation
+				rotary_ccw = true;
+			}
+			else if (prev_rot_state == 0b11) {
+				// CW Rotation
+				rotary_cw = true;
+			}
+			break;
+			case 0b10:
+			if (prev_rot_state == 0b11) {
+				// CCW Rotation
+				rotary_ccw = true;
+			}
+			else if (prev_rot_state == 0b00) {
+				// CW Rotation
+				rotary_cw = true;
+			}
+			break;
+			case 0b11:
+			if (prev_rot_state == 0b01) {
+				// CCW Rotation
+				rotary_ccw = true;
+			}
+			else if (prev_rot_state == 0b10) {
+				// CW Rotation
+				rotary_cw = true;
+			}
+			break;
+			
+			default:
+				rotary_ccw = false;
+				rotary_cw  = false;
+				break;
+		}
+		prev_rot_state = rot_state;
+		vTaskDelay(5/portTICK_RATE_MS);
+	}
+}
+
 void Task_ButtonInput() {
 	TickType_t xLastwakeTime;
 	
@@ -22,6 +86,7 @@ void Task_ButtonInput() {
 	uint8_t prev_dash_ack = 1; 
 	uint8_t prev_sys_ack = 1;
 	uint8_t prev_start = 1;
+
 	
 	// Implement a function that checks if all buttons are in the correct position at start up ?
 	
@@ -62,7 +127,7 @@ void Task_ButtonInput() {
 			}
 		}
 		
-		//Check rotary encoder for new input
+
 		if (btn.unhandledButtonAction == false) {
 			if (rotary_cw == true) {
 				btn.unhandledButtonAction = true;
@@ -117,7 +182,7 @@ void Task_ButtonInput() {
 		xSemaphoreGive(xButtonStruct);
 		//Using vtaskdelay until it is confirmed that delayuntil is not funky
 		//vTaskDelayUntil(&xLastwakeTime,30/portTICK_RATE_MS);
-		vTaskDelay(50/portTICK_RATE_MS);
+		vTaskDelay(5/portTICK_RATE_MS);
 	}
 }
 

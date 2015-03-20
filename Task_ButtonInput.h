@@ -11,6 +11,7 @@
 
 #include <stdbool.h>
 
+void Task_RotaryEncoder();
 void Task_ButtonInput(); 
 
 extern volatile bool rotary_cw;
