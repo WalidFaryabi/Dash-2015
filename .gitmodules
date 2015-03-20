@@ -1,0 +1,3 @@
+[submodule "sam4e-base"]
+	path = sam4e-base
+	url = https://github.com/RevolveNTNU/sam4e-base-2015
