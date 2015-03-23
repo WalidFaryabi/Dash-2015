@@ -69,6 +69,7 @@ static void vLcTimerCallback (TimerHandle_t lcTimer);
 static void vVarConfTimerCallback(TimerHandle_t xTimer);
 static void vMenuUpdateCallback(TimerHandle_t pxTimer);
 static void createAndStartMenuUpdateTimers();
+static void vTSLedTimerCallback(TimerHandle_t pxtimer);
 
 //***********************************************************************************
 //------------------------------------CALCULATION FUNCTIONS-------------------------//
@@ -185,6 +186,7 @@ MenuEntry menu[] = {
 
 #define NUM_MENUS_UPDATE 1 // Number of menus to specifiy a certain update frequency for
 #define RTDS_DURATION_MS 3000
+static TimerHandle_t TSLedTimer;
 static TimerHandle_t RTDSTimer;
 static TimerHandle_t LC_timer;
 static TimerHandle_t calibrationTimer;
@@ -253,6 +255,7 @@ void dashTask() {
 	LC_timer				= xTimerCreate("lcTimer",1000/portTICK_RATE_MS,pdTRUE,(void *) 1,vLcTimerCallback);
 	calibrationTimer		= xTimerCreate("CalibTimer",3000/portTICK_RATE_MS,pdFALSE,(void *) 1,vCalibrationTimerCallback);
 	variableConfTimer		= xTimerCreate("varTimer",3000/portTICK_RATE_MS,pdFALSE,0,vVarConfTimerCallback);
+	TSLedTimer				= xTimerCreate("TSLed", 300/portTICK_RATE_MS,pdTRUE,0,vTSLedTimerCallback);
 	createAndStartMenuUpdateTimers();
 	//Init states
 	SensorValues sensor_values;
@@ -688,33 +691,50 @@ static void LEDHandler(ECarState *car_state,SensorRealValue *sensor_real_value, 
 		pio_setOutput(IMD_LED_PIO,IMD_LED_PIN,PIN_LOW);
 	}
 	if ( (sensor_real_value->battery_temperature > BATTERY_TEMP_CRITICAL_HIGH) ) {
-		//pio_setOutput()
+		pio_setOutput(TEMP_LED_PIO,TEMP_LED_PIN,PIN_HIGH);
 	}
 	else {
 		//set low
+		pio_setOutput(TEMP_LED_PIO,TEMP_LED_PIN,PIN_LOW);
 	}
 	if (error->ecu_error != 0) {
-		//pio_setOutput()
+		pio_setOutput(ECU_LED_PIO,ECU_LED_PIN,PIN_HIGH);
 	}
 	else {
-		//pio_setOutput()
+		pio_setOutput(ECU_LED_PIO,ECU_LED_PIN,PIN_LOW);
 	}
 	if (checkDeviceStatus(devices) == false) {
 		//Set ouput high
+		pio_setOutput(DEVICE_LED_PIO,DEVICE_LED_PIN,PIN_HIGH);
 	}
 	else {
 		//set low
+		pio_setOutput(DEVICE_LED_PIO,DEVICE_LED_PIN,PIN_LOW);
 	}
-	if (*car_state == TRACTIVE_SYSTEM_ON) {
-		//blink led
-	}
-	else if (*car_state == DRIVE_ENABLED) {
-		//Constatnt green
-	}
-	else {
-		// Turn off timer and led
+	
+	switch (*car_state) {
+		case TRACTIVE_SYSTEM_ON:
+		 // Blink Green led
+		// Start a software timer. which alternates between setting the led high and low 
+		if (xTimerIsTimerActive(TSLedTimer) == pdFALSE) {
+			xTimerReset(TSLedTimer,0);
+		}
+		break;
+		case DRIVE_ENABLED:
+		// Constant Green led
+		// Turn off the timer 
+		xTimerStop(TSLedTimer,0);
+		pio_setOutput(TS_LED_PIO,TS_LED_PIN,PIN_HIGH);
+		break;
+		
+		default:
+			// Turn of timer and led
+			xTimerStop(TSLedTimer,0);
+			pio_setOutput(TS_LED_PIO,TS_LED_PIN, PIN_LOW);
+		break;
 	}
 }
+
 static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleError *error, SensorValues *sensor_values,StatusMsg *status,SensorRealValue *sensor_real) {
 	struct CanMessage txmsg = {
 		.data.u8[0] = 10,
@@ -1204,6 +1224,14 @@ static void vMenuUpdateCallback(TimerHandle_t pxTimer) {
 		break;
 	}
 }
+static void vTSLedTimerCallback(TimerHandle_t pxtimer){
+	if (pio_readPin(TS_LED_PIO,TS_LED_PIN) == 1) {
+		pio_setOutput(TS_LED_PIO,TS_LED_PIN,PIN_LOW);
+	}
+	else {
+		pio_setOutput(TS_LED_PIO,TS_LED_PIN, PIN_HIGH);
+	}
+}
 
 static void init_sensorRealValue_struct(SensorRealValue *sensorReal) {
 	sensorReal->torque_encoder_ch0 = 0;
@@ -1304,7 +1332,7 @@ static void clearAllButtons() {
 }
 
 static bool checkDeviceStatus(DeviceState *devices) {
-	if (devices->ECU == ALIVE && ( (devices->TRQ_0 == ALIVE) || (devices->TRQ_0 == UNITIALIZED) ) && ( (devices->TRQ_0 == ALIVE) || (devices->TRQ_0 == UNITIALIZED))
+	if (devices->ECU == ALIVE && ( (devices->TRQ_0 == ALIVE) || (devices->TRQ_0 == UNITIALIZED) ) && ( (devices->TRQ_1 == ALIVE) || (devices->TRQ_1 == UNITIALIZED))
 	 && devices->BSPD == ALIVE && devices->TEL == ALIVE && devices->ADC_FR == ALIVE && \
 	devices->ADC_FL== ALIVE && devices->ADC_RR == ALIVE && devices->ADC_RL == ALIVE && devices->INV == ALIVE && devices->FAN == ALIVE && \
 	devices->BMS == ALIVE && devices->GLVBMS == ALIVE && devices->IMU == ALIVE && devices->STEER_POS == ALIVE && devices->IMD == ALIVE) {

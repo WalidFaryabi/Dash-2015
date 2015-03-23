@@ -26,7 +26,7 @@
 #define CANR_FCN_PRI_ID				0x000		// Most significant
 #define CANR_FCN_BOOT_ID			0x200		// Priority data
 #define CANR_FCN_CMD_ID				0x400		// Module_id control
-#define CANR_FCN_DATA_ID			0x600		// Sensor data
+#define CANR_FCN_DATA_ID			0x600		// Data
 
 //- ID[7..3]
 #define CANR_GRP_SENS_ROTARY_ID		0x10		// Torque and steering encoder
@@ -57,6 +57,29 @@
 #define CANR_MODULE_ID5_ID			0x5
 #define CANR_MODULE_ID6_ID			0x6
 #define CANR_MODULE_ID7_ID			0x7
+
+
+//------------------------------------------------------------------------------
+/*	-------	MASKS ---------------------------------------------------------*/
+//------------------------------------------------------------------------------
+/*MASK function:
+	ID = ID in CAN controller filter
+	MASK = Mask in CAN controller filter
+	ID_msg = ID from incoming message
+	
+	Accept = (ID xor ID_msg) | (~MASK);
+	if(Accept == 0xFF)  Message recieved
+	else				Message rejected
+*/
+
+//Mask for recieving one group specifically,
+//Group together to add more messages
+//High bit means bit is significant in ID_ext
+#define MASK_RECIEVE_FCN		(0x600)
+#define MASK_RECIEVE_GRP		(0x1F8)
+#define MASK_RECIEVE_MODULE		(0x007)
+#define MASK_RECIEVE_ALL		(MASK_RECIEVE_FCN|MASK_RECIEVE_GRP|MASK_RECIEVE_MODULE)
+
 
 //------------------------------------------------------------------------------
 /*	-------	ALIVE	 ---------------------------------------------------------*/
@@ -91,10 +114,8 @@
 #define ALIVE_IMD					0x0D
 #define ALIVE_STEER_POS				0x0E
 #define ALIVE_STEER_POS_UNINIT		0x0F
-#define ALIVE_TRQ_0					0x10
-#define ALIVE_TRQ_1					0x11
-#define ALIVE_TRQ_0_UNINIT			0x12
-#define ALIVE_TRQ_1_UNINIT			0x13	
+#define ALIVE_TRQ					0x10
+#define ALIVE_TRQ_UNINIT			0x11
 
 //-------------------------------------------------------------------------------
 /*	------- Module ID overrides	 ----------------------------------------------*/
@@ -117,4 +138,3 @@
 
 
 #endif /* REVOLVE_CAN_DEFINITIONS_H_ */
-

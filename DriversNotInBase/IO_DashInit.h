@@ -35,6 +35,7 @@
 #define SYS_ACK_PIO PIOD // Uses the slot meant for KERS switch
 #define SYS_ACK_PIN 24
 
+
 #define AMS_LED_PIO PIOA	
 #define AMS_LED_PIN 22
 
@@ -60,6 +61,7 @@
 #define DEVICE_LED_PIN 7
 
 
+
 #define BUZZER_PIO PIOD
 #define BUZZER_PIN 0
 
@@ -74,5 +76,6 @@ void dash_io_init();
 
 void pio_inputDebounce(Pio *pio, uint8_t pin, uint16_t div, enum FilterType filter_type);
 void pio_inputPulldown(Pio *pio, uint8_t pin,enum PullType pull_type);
+void pio_outputPulldownLow(Pio *pio, uint8_t pin);
 
 #endif /* DASH_IO_H_ */

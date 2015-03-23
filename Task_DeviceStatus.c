@@ -7,8 +7,9 @@
 
 #include "Task_Menu.h"
 #include "CanHandler.h"
-
+#include "canID_definitions.h"
 #include "DriversNotInBase/revolve_can_definitions.h"
+
 
 
 #define NUM_DEVICES 16
@@ -86,7 +87,6 @@ void vDeviceTimerCallback(TimerHandle_t pxTimer) {
 	}
 }
 
-
 void deviceStatusTask() {
 	TickType_t xLastWakeTime;
 	portBASE_TYPE xStatus;
@@ -110,19 +110,19 @@ void deviceStatusTask() {
 					xTimerReset(deviceTimer[0],1/portTICK_RATE_MS);
 					device_state.ECU = ALIVE;
 					break;
-				case ALIVE_TRQ_0:
+				case ALIVE_TRQ_CAN_0:
 					xTimerReset(deviceTimer[1],1/portTICK_RATE_MS);
 					device_state.TRQ_0 = ALIVE;
 					break;
-				case ALIVE_TRQ_1:
+				case ALIVE_TRQ_CAN_1:
 					xTimerReset(deviceTimer[15],1/portTICK_RATE_MS);
 					device_state.TRQ_1 = ALIVE;
 					break;		
-				case ALIVE_TRQ_0_UNINIT:
+				case ALIVE_UNINIT_TRQ_CAN_0:
 					xTimerReset(deviceTimer[1],1/portTICK_RATE_MS);
 					device_state.TRQ_0 = UNITIALIZED;
 					break;
-				case ALIVE_TRQ_1_UNINIT:
+				case ALIVE_UNINIT_TRQ_CAN_1:
 					xTimerReset(deviceTimer[15],1/portTICK_RATE_MS);
 					device_state.TRQ_1 = UNITIALIZED;
 					break;						

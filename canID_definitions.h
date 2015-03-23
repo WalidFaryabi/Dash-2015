@@ -42,4 +42,9 @@
 
 
 
+#define ALIVE_TRQ_CAN_0				0x14
+#define ALIVE_TRQ_CAN_1				0x15
+#define ALIVE_UNINIT_TRQ_CAN_0		0x16
+#define ALIVE_UNINIT_TRQ_CAN_1		0x17
+
 #endif /* CANID_DEFINITIONS_H_ */

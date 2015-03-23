@@ -86,7 +86,19 @@ void CAN0_Handler() {
 		
 		switch (message.messageID) {
 			case ID_ALIVE:
-				xQueueSendToBackFromISR(xDeviceStatusQueue, &message.data.u8[0], NULL);
+			
+				switch (message.data.u8[0]) {
+					case ALIVE_TRQ:
+					// Tells de
+					xQueueSendToBackFromISR(xDeviceStatusQueue, (uint8_t *) ALIVE_TRQ_CAN_0, NULL);
+					break;
+					case ALIVE_TRQ_UNINIT:
+					xQueueSendToBackFromISR(xDeviceStatusQueue, (uint8_t *) ALIVE_UNINIT_TRQ_CAN_0, NULL);
+					break;
+					default:
+					xQueueSendToBackFromISR(xDeviceStatusQueue, &message.data.u8[0], NULL);
+					break;
+				}
 			break;
 			case ID_TELEMETRY_CONTROL:
 				xQueueSendToBackFromISR(xRemoteControlQueue, &message.data.u8[0],NULL);
@@ -103,7 +115,7 @@ void CAN0_Handler() {
 			break;
 			
 			
-			
+		break;	
 		}
 		portEND_SWITCHING_ISR(lHigherPriorityTaskWoken);
 	}	
@@ -135,6 +147,19 @@ void CAN1_Handler() {
 			// Remember to turn of all other can sendmessages when testing this !!!!
 			//while (can_sendMessage(CAN1,dataloggerFail) != TRANSFER_OK);
 			//Queue is full. What to do ?
+		}
+		switch (message.messageID) {
+			case ID_ALIVE:
+				switch (message.data.u8[0]) {
+					case ALIVE_TRQ:
+					// Tells de
+					xQueueSendToBackFromISR(xDeviceStatusQueue, (uint8_t *) ALIVE_TRQ_CAN_1, NULL);
+					break;
+					case ALIVE_TRQ_UNINIT:
+					xQueueSendToBackFromISR(xDeviceStatusQueue, (uint8_t *) ALIVE_UNINIT_TRQ_CAN_1, NULL);
+					break;
+				}
+			break;
 		}
 		portEND_SWITCHING_ISR(lHigherPriorityTaskWoken);
 	}
