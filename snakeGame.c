@@ -22,7 +22,7 @@ static void generateFood();
 #define NUM_SEGMENTS_X	24
 #define NUM_SEGMENTS_Y	13
 
-#define ADJUSTMENT_MENU_SNAKE 6
+#define ADJUSTMENT_MENU_SNAKE 10
 #define MAX_SNAKE_SIZE ((NUM_SEGMENTS_X-1)*(NUM_SEGMENTS_Y-1))
 
 typedef enum {FOOD, SNAKE_PART, EMPTY_POS, WALL} mapItems;
@@ -51,6 +51,7 @@ static uint16_t gameSpeed = 500; // The delay time between updates of the snake 
 
 //static uint16_t snake_score1 = 0;
 static uint16_t snake_score = 0;
+static bool get_new_direction = true; 
 void snakeControlFunction(bool buttonPressed, ENavigationDirection dir) {
 	switch (snakeGameState) {
 		case SNAKE_OFF:
@@ -76,6 +77,7 @@ void snakeControlFunction(bool buttonPressed, ENavigationDirection dir) {
 		case SNAKE_RUNNING:
 			changeDirection(dir, buttonPressed);
 			if (snakeUpdate == true) {
+				get_new_direction = true;
 				snakeUpdate = false;
 				// State will be changed to OFF if the collides
 				updateSnake();
@@ -155,11 +157,13 @@ static void initMap() {
 
 
 static void changeDirection(ENavigationDirection dir, bool newButtonAction) {
-	if (newButtonAction) {
+	if (newButtonAction && get_new_direction) {
+		get_new_direction = false;
 		switch (dir) {
 			case UP:
 			if (SnakeDirection != SNAKE_DOWN) {
 				SnakeDirection = SNAKE_UP;
+				
 			}
 			break;
 			case DOWN:
@@ -211,9 +215,9 @@ static void moveSnake(int8_t dx, int8_t dy) {
 	else if (gameMap[newHeadSegment.y_pos][newHeadSegment.x_pos] == FOOD ) {
 		generateFood();
 		if (gameSpeed >= 50) {
-			gameSpeed -= 50;
+			gameSpeed -= 0.5*(100 - 3*snake_score);
 		}
-		snake_score += 10;
+		snake_score += 1;
 		xTimerChangePeriod(snakeUpdateTimer,gameSpeed/portTICK_RATE_MS,200/portTICK_RATE_MS);
 	}
 	else {

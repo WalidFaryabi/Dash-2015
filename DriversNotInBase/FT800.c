@@ -64,7 +64,9 @@ void host_command(ft_uint8_t command) {
 void wr8(unsigned long addr, ft_uint8_t value) {
 	
 	
-	uint32_t tbuffer[4] = {  (0x80 | (addr >> 16)) & 0xFF,  (addr >> 8) & 0xFF, addr & 0xFF, 0x01000000 | (value & 0xFF)};
+// 	uint32_t tbuffer[4] = {  (0x80 | (addr >> 16)) & 0xFF,  (addr >> 8) & 0xFF, addr & 0xFF, 0x01000000 | (value & 0xFF)};
+// 	uint32_t rbuffer[4];
+	uint32_t tbuffer[4] = {spi_word(false,0,(0x80 | (addr >> 16))), spi_word(false,0,(addr >> 8)), spi_word(false,0, addr),spi_word(true,0,value)};
 	uint32_t rbuffer[4];
 	spi_freeRTOSTranceive(tbuffer, 4, 0,  rbuffer);
 	/*

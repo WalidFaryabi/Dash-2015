@@ -63,7 +63,7 @@ int main(void) {
 	bytesremaining = xPortGetFreeHeapSize();
 	status = xTaskCreate(usbMscTask,"MscTask",1000, NULL, tskIDLE_PRIORITY + 1, &mscTaskHandle);
 	bytesremaining = xPortGetFreeHeapSize();
-	status = xTaskCreate(dataLoggerTask,"Datalogger",2500,NULL,tskIDLE_PRIORITY +4, &dataLoggerHandle);
+	//status = xTaskCreate(dataLoggerTask,"Datalogger",2500,NULL,tskIDLE_PRIORITY +4, &dataLoggerHandle);
 	bytesremaining = xPortGetFreeHeapSize();
 	status = xTaskCreate(Task_remoteControl,"remote",500, NULL, tskIDLE_PRIORITY + 2,NULL);
 	bytesremaining = xPortGetFreeHeapSize();

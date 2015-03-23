@@ -119,14 +119,20 @@ void Task_ButtonInput() {
 			}
 		}
 		//Check the push button on the rotary encoder (acknowledge button)
+// 		if (btn.unhandledButtonAction == false) {
+// 			if ( (pio_readPin(ROT_PUSH3_PIO,ROT_PUSH3_PIN) == 0) && (prev_dash_ack == 1) ) {
+// 				btn.unhandledButtonAction = true;
+// 				btn.dash_acknowledge = true;
+// 				btn.btn_type = DASH_ACK;
+// 			}
+// 		}
 		if (btn.unhandledButtonAction == false) {
-			if ( (pio_readPin(ROT_PUSH3_PIO,ROT_PUSH3_PIN) == 0) && (prev_dash_ack == 1) ) {
+			if ( (pio_readPin(SYS_ACK_PIO,SYS_ACK_PIN) == 0) && (prev_sys_ack == 1) ) {
 				btn.unhandledButtonAction = true;
 				btn.dash_acknowledge = true;
 				btn.btn_type = DASH_ACK;
 			}
-		}
-		
+		}		
 
 		if (btn.unhandledButtonAction == false) {
 			if (rotary_cw == true) {
@@ -152,13 +158,13 @@ void Task_ButtonInput() {
 		}
 		
 		//Check if the the system acknowledge button has been pressed
-		if (btn.unhandledButtonAction == false) {
-			if ( (pio_readPin(SYS_ACK_PIO,SYS_ACK_PIN) == 0) && (prev_sys_ack == 1) ) {
-				btn.unhandledButtonAction = true;
-				btn.system_acknowledge = true;
-				btn.btn_type = SYS_ACK;
-			}
-		}
+// 		if (btn.unhandledButtonAction == false) {
+// 			if ( (pio_readPin(SYS_ACK_PIO,SYS_ACK_PIN) == 0) && (prev_sys_ack == 1) ) {
+// 				btn.unhandledButtonAction = true;
+// 				btn.system_acknowledge = true;
+// 				btn.btn_type = SYS_ACK;
+// 			}
+// 		}
 		
 		//Check if the start button has been pressed
 		if (btn.unhandledButtonAction == false) {

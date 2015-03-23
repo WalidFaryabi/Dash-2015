@@ -87,6 +87,7 @@ static void DrawSpeedScreen(SensorRealValue *sensor_real);
 static void DrawSystemMonitorScreen(ModuleError *error,SensorRealValue *val);
 static void DrawTempAndVoltScreen(SensorRealValue *tempvolt);
 
+static void DrawMainMenu();
 static void DrawAdjustmentMenu();
 static void DrawECUAdjustmentScreen(Variables *var);
 static void DrawDeviceStatusMenu(DeviceState *device_state);
@@ -141,14 +142,14 @@ MenuEntry menu[] = {
 	{menu_003, 1,	3,	3,	3,	2,	3,  1,	TEMP_VOLT,			NO_SETTING,					0 },				//3
 		
 	{menu_200, 9,	4,	4,	4,	4,	4,  0,	MAIN_MENU,			NO_SETTING,					0},					//4  main menu
-	{menu_201, 9,	5,	6,	0,	9,  13,	1,  MAIN_MENU,			NO_SETTING,					0},					//5	 Device Status  
+	{menu_201, 9,	5,	6,	0,	9,  14,	1,  MAIN_MENU,			NO_SETTING,					0},					//5	 Device Status  
 	{menu_202, 9,	5,	7,	0,	10, 19,	2,  MAIN_MENU,			NO_SETTING,					0},					//6  Steer calib
 	{menu_203, 9,	6,	8,	0,	11, 20,	3,  MAIN_MENU,			NO_SETTING,					0},					//7	 Torque Pedal Calibration
-	{menu_204, 9,	7,	8,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0},					//8  ECU Options
-	{menu_205, 9,	9,	10,	0,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0},					//9  IMU options
-	{menu_206, 9,	9,	11,	0,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0},					//10 Snake
-	{menu_207, 9,	10,	12,	0,	11, 11,	7,  MAIN_MENU,			NO_SETTING,					0},					//11 placeholder options
-	{menu_208, 9,	11,	12,	0,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0},					//12 placeholder options
+	{menu_204, 9,	7,	9,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0},					//8  ECU Options
+	{menu_205, 9,	8,	10,	5,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0},					//9  IMU options
+	{menu_206, 9,	9,	11,	6,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0},					//10 Snake
+	{menu_207, 9,	10,	12,	7,	11, 11,	7,  MAIN_MENU,			NO_SETTING,					0},					//11 placeholder options
+	{menu_208, 9,	11,	12,	8,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0},					//12 placeholder options
 		
 		
 
@@ -175,12 +176,12 @@ MenuEntry menu[] = {
 //-----------------------------GLOBALS--------------------------------//
 //********************************************************************//
 // Define position of some menu elements to simplify programming
-#define ADJUSTMENT_MENU_POS 5
-#define ECU_SETTINGS_MENU_POS 12
-#define ECU_SETTINGS_VARIABLES_POS 12
-#define DRIVE_ENABLE_WARNING_SEL 16
-#define ERROR_HANDLER_POS 18
-#define LC_HANDLER_POS 17
+#define MAIN_MENU_POS 5
+#define ECU_SETTINGS_MENU_POS 21
+#define ECU_SETTINGS_VARIABLES_POS 21
+#define DRIVE_ENABLE_WARNING_SEL 15
+#define ERROR_HANDLER_POS 17
+#define LC_HANDLER_POS 16
 
 #define NUM_MENUS_UPDATE 1 // Number of menus to specifiy a certain update frequency for
 #define RTDS_DURATION_MS 3000
@@ -349,7 +350,9 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, ECarState
 		case TRQ_CALIB:
 		calibrateTorquePedal(conf_msgs,false);
 		break;
-		
+		case STEER_CALIB:
+		calibrateSteering(conf_msgs,false);
+		break;
 		case MAIN_SCREEN:
 		if ((menuUpdate.update_mainScreen == true) ) {
 			menuUpdate.update_mainScreen = false;
@@ -358,7 +361,7 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, ECarState
 		break;
 		
 		case MAIN_MENU:
-		DrawAdjustmentMenu();
+		DrawMainMenu();
 		break;
 		
 		case SNAKE_GAME:
@@ -485,7 +488,7 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 				xTimerReset(variableConfTimer,20/portTICK_RATE_MS); //Start variable confirmation timer
 			break;
 			case PERSISTENT_MSG:
-				//If a persistent msg is acknownledged the user is returned to the main screen
+				//If a persistent msg is acknowledged the user is returned to the main screen
 				selected = 0; //Return to main screen
 				DrawMainScreen(sensor_real,20,20,device_state,car_state);
 			break;
@@ -494,6 +497,13 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 			break;
 			case STEER_CALIB:
 				calibrateSteering(conf_msgs,true);
+			break;
+			
+			case SNAKE_GAME:
+				if (snakeGameState == SNAKE_OFF) {
+					snakeGameState = SNAKE_PREPPING;
+					snakeControlFunction(false,UP);
+				}
 			break;
 		}
 		btn->dash_acknowledge = false;
@@ -646,7 +656,7 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 		DrawTempAndVoltScreen(sensor_real);
 		break;
 		case MAIN_MENU:
-		DrawAdjustmentMenu();
+		DrawMainMenu();
 		break;
 		case DEVICE_STATUS:
 		DrawDeviceStatusMenu(device_state);
@@ -654,12 +664,12 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 		case ECU_OPTIONS:
 		DrawECUAdjustmentScreen(var);
 		break;
-		case SNAKE_GAME:
-		if (snakeGameState == SNAKE_OFF) {
-			snakeGameState = SNAKE_PREPPING;
-			snakeControlFunction(false,UP);
-		}
-		break;
+		//case SNAKE_GAME:
+// 		if (snakeGameState == SNAKE_OFF) {
+// 			snakeGameState = SNAKE_PREPPING;
+// 			snakeControlFunction(false,UP);
+// 		}
+// 		break;
 	}
 }
 
@@ -1025,7 +1035,7 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				
 				trq_calib_timed_out = false; // Reset time out flag
 				trq_calib_state = TRQ_CALIBRATION_OFF;
-				selected = ADJUSTMENT_MENU_POS; // Back to adjustment menu
+				selected = MAIN_MENU_POS; // Back to adjustment menu
 			}
 		break;
 	
@@ -1046,7 +1056,7 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				
 				trq_calib_timed_out = false;
 				trq_calib_state = TRQ_CALIBRATION_OFF;
-				selected = ADJUSTMENT_MENU_POS;
+				selected = MAIN_MENU_POS;
 			}
 			break;
 	}
@@ -1061,8 +1071,8 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				steer_calib_timed_out = false;
 				steer_calib_state = STEER_C_WAITING_LEFT;
 				// Send CAN message that left is calibrated
-				can_freeRTOSSendMessage(CAN0,SteeringCalibrationLeft);
-				can_freeRTOSSendMessage(CAN1,SteeringCalibrationLeft);
+				//can_freeRTOSSendMessage(CAN0,SteeringCalibrationLeft);
+				//can_freeRTOSSendMessage(CAN1,SteeringCalibrationLeft);
 				xTimerReset(calibrationTimer,15/portTICK_RATE_MS);	
 				
 				
@@ -1116,7 +1126,7 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 			if (ack_pressed == true) {
 				conf_msgs->conf_steer = STEER_CONF_DEFAULT;
 				steer_calib_state = STEER_C_OFF;
-				selected = ADJUSTMENT_MENU_POS;
+				selected = MAIN_MENU_POS;
 				steer_calib_timed_out = false;
 				xTimerReset(calibrationTimer,5/portTICK_RATE_MS);
 			}
@@ -1126,7 +1136,7 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 			if (ack_pressed == true) {
 				conf_msgs->conf_steer = STEER_CONF_DEFAULT;
 				steer_calib_state = STEER_C_OFF;
-				selected = ADJUSTMENT_MENU_POS;
+				selected = MAIN_MENU_POS;
 				steer_calib_timed_out = false;
 				xTimerReset(calibrationTimer,5/portTICK_RATE_MS);
 			}
@@ -1136,7 +1146,7 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 			if (ack_pressed == true) {
 				conf_msgs->conf_steer = STEER_CONF_DEFAULT;
 				steer_calib_state = STEER_C_OFF;
-				selected = ADJUSTMENT_MENU_POS;
+				selected = MAIN_MENU_POS;
 				steer_calib_timed_out = false;
 				xTimerReset(calibrationTimer,5/portTICK_RATE_MS);
 			}
@@ -1364,10 +1374,8 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 static void createAndStartMenuUpdateTimers() {
 	timer_menuUpdate[0] = xTimerCreate("MainScreen",500/portTICK_RATE_MS, pdTRUE, (void *) 0 ,vMenuUpdateCallback);
 	if (timer_menuUpdate[0] == NULL) {
-		uint8_t whatTTT = 0;
 	}
 	else if (xTimerStart(timer_menuUpdate[0],0) != pdPASS) {
-		uint8_t whaaaaaaaaaaat = 0;
 	}
 }
 
@@ -1729,6 +1737,91 @@ static void DrawTempAndVoltScreen(SensorRealValue *tempvolt) {
 }
 
 
+static void DrawMainMenu() {
+	
+	uint8_t pos = selected - menu[selected].position; // First position in current menu
+	uint8_t end_position  = pos + menu[pos].num_menupoints - 1;  // Last position in current menu
+	uint16_t y_position = 20;
+	uint16_t x_position = 10;
+	
+	uint16_t x_position_text = 120;
+	uint16_t y_position_text = 50;
+	
+	
+	uint16_t button_width = 230;
+	uint16_t button_heigth = 60;
+	uint8_t vert_spacing = 62;
+		
+	cmd(CMD_DLSTART);
+	cmd(CLEAR(1, 1, 1)); // clear screen
+	//cmd_text(236,20 , 29, OPT_CENTER, menu[pos].text);
+	pos = pos +1;
+	cmd(COLOR_RGB(255,255,255));
+	for (pos; pos <= (end_position-4); pos ++) {
+		if ( pos == selected) {
+			
+			cmd(BEGIN(RECTS));
+			cmd(COLOR_RGB(255,255,20)); // Make the main battery rectangle grey
+			cmd(LINE_WIDTH(16*5));
+			//cmd_fgcolor(0xffff33);
+			//cmd(COLOR_RGB(0,0,0));
+			cmd(VERTEX2F(x_position*16,y_position*16));
+			cmd(VERTEX2F((x_position+button_width)*16, (y_position+button_heigth)*16));
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+			//cmd(COLOR_RGB(255,255,255));
+			cmd(COLOR_RGB(0,0,0));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			
+			cmd_coldstart();
+		}
+		else {
+			//cmd_fgcolor(0x302020);
+			//cmd_fgcolor(0x0);
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+		}
+		y_position += vert_spacing;
+		y_position_text += vert_spacing;
+	}
+	
+	y_position = 20;
+	x_position = 250;
+	
+	x_position_text = 360;
+	y_position_text = 50;
+	for (pos ; pos <= end_position; pos ++) {
+		if ( pos == selected) {		
+			cmd(BEGIN(RECTS));
+			cmd(COLOR_RGB(255,255,20)); // Make the main battery rectangle grey
+			cmd(LINE_WIDTH(16*5));
+			//cmd_fgcolor(0xffff33);
+			//cmd(COLOR_RGB(0,0,0));
+			cmd(VERTEX2F(x_position*16,y_position*16));
+			cmd(VERTEX2F((x_position+button_width)*16, (y_position+button_heigth)*16));
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+			//cmd(COLOR_RGB(255,255,255));
+			cmd(COLOR_RGB(0,0,0));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+					
+			cmd_coldstart();
+		}
+		else {
+			//cmd_fgcolor(0x302020);
+			//cmd_fgcolor(0x0);
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+		}
+		y_position += vert_spacing;
+		y_position_text += vert_spacing;
+	}
+		
+	cmd(DISPLAY()); // display the image
+	cmd(CMD_SWAP);
+	cmd_exec();
+}
+
 static void DrawAdjustmentMenu() {
 	uint8_t y_position = 60;
 	uint8_t pos = selected - menu[selected].position; // First position in current menu
@@ -1781,7 +1874,7 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 	uint32_t y_menu_position = 52;
 	uint32_t x_menu_position = 5;
 	uint32_t vertical_menu_spacing = 55;
-	uint8_t font_size = 28;
+	uint8_t font_size = 27;
 	
 	cmd_text(240,10,30,OPT_CENTER,"ECU OPTIONS");
 	for (menu_pos; menu_pos <= end_menu_pos ; menu_pos ++) {
@@ -1799,12 +1892,12 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 	uint32_t y_slider_position = 60;
 	uint8_t vertical_slider_spacing = 55;
 	uint32_t slider_width = 190;
-	uint8_t slider_heigth = 20;
+	uint8_t slider_heigth = 10;
 	
 	uint8_t x_num_adj = 34;
 	uint8_t x_max_num_adj = 215;
 	uint8_t y_num_adj = 10;
-	uint8_t num_font_size = 30;
+	uint8_t num_font_size = 27;
 	
 	uint16_t range_P_term = var->max_P_term - var->min_P_term;
 	uint16_t range_I_term = var->max_I_term - var->min_I_term;
@@ -1814,19 +1907,22 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 	//Knob : fgcolor
 	//Left of knob : COLOR_RGB
 	//Right of knob : bgcolor
+	uint32_t color_right = 0x0;
+	uint32_t color_knob  = 0x0000FF;
 
 	for (variable_pos; variable_pos <= end_variable_pos; variable_pos ++) {
 		
 		if (menu[variable_pos].current_setting == TORQUE_SETTING) {
 			if (selected == variable_pos) {
 				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(0xffff33); // Yellow right of knob
+				cmd_bgcolor(color_right); // Yellow right of knob
 				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->torque,100);
 				cmd_coldstart();
 			}
 			else {
 				cmd_coldstart();
+				cmd_bgcolor(color_right);
 				cmd(COLOR_RGB(140,140,140)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->torque,100);
 			}
@@ -1840,14 +1936,15 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 		else if (menu[variable_pos].current_setting == ECU_P_SETTING) {
 			if (selected == variable_pos) {
 				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(0xffff33); // Yellow right of knob
+				cmd_bgcolor(color_right); // Yellow right of knob
 				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT, var->P_term - var->min_P_term, range_P_term);
 				cmd_coldstart();
 			}
 			else {
 				cmd_coldstart();
-				cmd(COLOR_RGB(140,140,140)); // Yellow left of knob
+				cmd_bgcolor(color_right);
+				cmd(COLOR_RGB(140,140,140)); 
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT, var->P_term - var->min_P_term, range_P_term);
 			}
 			cmd(COLOR_RGB(255,255,255));
@@ -1859,14 +1956,15 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 		else if (menu[variable_pos].current_setting == ECU_D_SETTING) {
 			if (selected == variable_pos) {
 				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(0xffff33); // Yellow right of knob
+				cmd_bgcolor(color_right); // Yellow right of knob
 				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->D_term - var->min_D_term,range_D_term);
 				cmd_coldstart();
 			}
 			else {
 				cmd_coldstart();
-				cmd(COLOR_RGB(140,140,140)); // Yellow left of knob
+				cmd_bgcolor(color_right);
+				cmd(COLOR_RGB(140,140,140)); 
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->D_term - var->min_D_term,range_D_term);
 			}
 			cmd(COLOR_RGB(255,255,255));
@@ -1878,13 +1976,14 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 		else if (menu[variable_pos].current_setting == ECU_I_SETTING) {
 			if (selected == variable_pos) {
 				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(0xffff33); // Yellow right of knob
+				cmd_bgcolor(color_right); // Yellow right of knob
 				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->I_term - var->min_I_term,range_I_term);
 				cmd_coldstart();
 			}
 			else {
 				cmd_coldstart();
+				cmd_bgcolor(color_right);
 				cmd(COLOR_RGB(140,140,140)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->I_term - var->min_I_term,range_I_term);
 			}
@@ -1898,13 +1997,14 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 		else if (menu[variable_pos].current_setting == ECU_LC_RT_SETTING) {
 			if (selected == variable_pos) {
 				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(0xffff33); // Yellow right of knob
+				cmd_bgcolor(color_right); // Yellow right of knob
 				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->T_term - var->min_T_term,range_T_term);
 				cmd_coldstart();
 			}
 			else {
 				cmd_coldstart();
+				cmd_bgcolor(color_right);
 				cmd(COLOR_RGB(140,140,140)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->I_term - var->min_T_term,range_T_term);
 			}
@@ -1917,13 +2017,14 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 		else if (menu[variable_pos].current_setting == ECU_LC_INIT_TORQ_SETTING) {
 			if (selected == variable_pos) {
 				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(0xffff33); // Yellow right of knob
+				cmd_bgcolor(color_right); // Yellow right of knob
 				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->R_term - var->min_R_term,range_R_term);
 				cmd_coldstart();
 			}
 			else {
 				cmd_coldstart();
+				cmd_bgcolor(color_right);
 				cmd(COLOR_RGB(140,140,140)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->R_term - var->min_R_term,range_R_term);
 			}

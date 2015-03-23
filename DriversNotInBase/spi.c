@@ -176,6 +176,4 @@ void spi_deviceInit(struct SpiDevice SpiDeviceSettings) {
 	SPI->SPI_CSR[SpiDeviceSettings.chip_select] |= (SpiDeviceSettings.bits_per_transfer-8) << 4;
 	SPI->SPI_CSR[SpiDeviceSettings.chip_select] |= SpiDeviceSettings.time_until_first_valid_SPCK << 16;
 	SPI->SPI_CSR[SpiDeviceSettings.chip_select] |= SpiDeviceSettings.delay_between_two_consecutive_transfers << 24;
-	
-
 }
