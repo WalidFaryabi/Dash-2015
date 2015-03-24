@@ -308,6 +308,7 @@ void dashTask() {
 	//delay_ms(50);
 	xSemaphoreTake(spi_handlerIsDoneSempahore,0);
 	FT800_Init();
+	spi_setBaudRateHz(120000000,20000000,0); // Increase speed after init
 	
 	//Need to delay 50 ms after the init of ft800 before any transfers to it happen
 	vTaskDelay(50/portTICK_RATE_MS);

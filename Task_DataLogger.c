@@ -84,14 +84,7 @@ void dataLoggerTask() {
 		if (xQueueReceive(xDataloggerCommandQueue,&currentCommand,0) != pdPASS) {
 			currentCommand = NO_COMMAND;
 		}
-		if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 0) && (dataLoggerHandle != xSemaphoreGetMutexHolder(file_access_mutex)) )   {
-			// If USB is not connected and the datalogger doesnt own the file mutex -> aquire it
-			xSemaphoreTake(file_access_mutex,portMAX_DELAY);
-			dataloggerState = DATALOGGER_IDLE;
-		}
-		else if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 1 )  && (dataLoggerHandle == xSemaphoreGetMutexHolder(file_access_mutex)) ) {
-			dataloggerState = DATALOGGER_USB_CONNECTED;
-		}
+		
 		switch (dataloggerState) {
 			case DATALOGGER_IDLE:
 				switch (currentCommand) {
@@ -103,6 +96,11 @@ void dataLoggerTask() {
 						deleteAllFiles();
 						break;
 				}
+				if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 1 )  && (dataLoggerHandle == xSemaphoreGetMutexHolder(file_access_mutex)) ) {
+					dataloggerState = DATALOGGER_USB_CONNECTED;
+					xSemaphoreGive(file_access_mutex);
+				}
+				vTaskDelay(40/portTICK_RATE_MS);
 			break;		
 			
 			case DATALOGGER_FILE_OPEN:
@@ -118,12 +116,18 @@ void dataLoggerTask() {
 						dataloggerState = DATALOGGER_IDLE;
 					break;
 				}
+				if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 1 )  && (dataLoggerHandle == xSemaphoreGetMutexHolder(file_access_mutex)) ) {
+					dataloggerState = DATALOGGER_USB_CONNECTED;
+					f_truncate(&file_object);
+					f_close(&file_object);
+					xSemaphoreGive(file_access_mutex);
+				}
+				vTaskDelay(40/portTICK_RATE_MS);
 			break;	
+			
 			case DATALOGGER_LOGGING:
 				switch(currentCommand) {
 					case CLOSE_FILE:
-						// Stop logging and close file
-						// Transition to idle state
 						offset = 0;
 						f_truncate(&file_object);
 						f_close(&file_object);					
@@ -133,18 +137,26 @@ void dataLoggerTask() {
 						logDataToCurrentFile();
 						break;
 				}
+				if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 1 )  && (dataLoggerHandle == xSemaphoreGetMutexHolder(file_access_mutex)) ) {
+					dataloggerState = DATALOGGER_USB_CONNECTED;
+					f_truncate(&file_object);
+					f_close(&file_object);
+					xSemaphoreGive(file_access_mutex);
+				}
+				vTaskDelay(1/portTICK_RATE_MS); // This needs confirmation based on speed requirements etc.
 			break;
+			
 			case DATALOGGER_USB_CONNECTED:
-				offset = 0;
-				f_truncate(&file_object);
-				f_close(&file_object);
-				xSemaphoreGive(file_access_mutex);
+				if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 0) && (dataLoggerHandle != xSemaphoreGetMutexHolder(file_access_mutex)) )   {
+					// If USB is not connected and the datalogger doesnt own the file mutex -> aquire it
+					xSemaphoreTake(file_access_mutex,portMAX_DELAY);
+					dataloggerState = DATALOGGER_IDLE;
+				}
+				vTaskDelay(5/portTICK_RATE_MS);
 			break;
 		}
 	}
 }
-
-
 
 static void deleteAllFiles() {
 	fno.lfname = 0;

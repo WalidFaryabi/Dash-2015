@@ -117,7 +117,7 @@ static void hardwareInit() {
 		.bits_per_transfer = 8,
 		.delay_between_two_consecutive_transfers = 0,
 		.peripheral_clock_hz = 120000000,
-		.spi_baudRate_hz = 8000000,
+		.spi_baudRate_hz = 2000000,
 		.time_until_first_valid_SPCK = 0,
 		.spi_mode = MODE_0
 	};
