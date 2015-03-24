@@ -6,6 +6,7 @@
 #include "DriversNotInBase/revolve_can_definitions.h"
 #include "DriversNotInBase/IO_DashInit.h"
 
+#include "Task_DataLogger.h"
 #include "CanMessages.h"
 #include "canID_definitions.h"
 #include "CanHandler.h"
@@ -82,7 +83,7 @@ static void sensorValueToRealValue(SensorValues *sensor_values,SensorRealValue *
 static void DrawMainScreen(SensorRealValue *sensor,uint8_t low_volt, uint8_t high_volt, DeviceState *devices, ECarState *car_state);
 static void DrawLowVoltageBattery(uint8_t battery_left_percent);
 static void DrawHighVoltageBattery(uint8_t battery_left_percent);
-static void drawHighVoltageSymbol();
+static void DrawHighVoltageSymbol();
 
 static void DrawSpeedScreen(SensorRealValue *sensor_real);
 static void DrawSystemMonitorScreen(ModuleError *error,SensorRealValue *val);
@@ -97,7 +98,7 @@ static void DrawTorqueCalibrationScreen(ConfirmationMsgs *conf_msg);
 static void DrawSteerCalibScreen();
 static void DrawDriveEnableWarning(bool torque_pedal, bool brake_pedal, bool bms_discharge);
 static void DrawLaunchControlProcedure(ECarState *car_state);
-
+static void DrawDataloggerInterface();
 
 //***********************************************************************************
 //------------------------------------DATALOGGER FUNCTIONS-------------------------//
@@ -113,8 +114,8 @@ static void slider_preallocateAmount();
 //***********************************************************************************
 const char menu_000[] = "Main";									// 0
 const char menu_001[] = "Speed";								// 1
-const char menu_002[] = "System Monitor";						// 2
-const char menu_003[] = "Temperatures and voltages";			// 3
+const char menu_002[] = "SYSTEM MONITOR";						// 2
+const char menu_003[] = "TEMPERATURES AND VOLTAGES";			// 3
 
 const char menu_200[] = "MAIN MENU";							// 4
 const char menu_201[] = "DEVICE STATUS";						// 5
@@ -150,75 +151,49 @@ const char menu_703[] = "DELETE FILES";							// 26
 const char menu_704[] = "PREALLOCATE";							// 26
 
 MenuEntry menu[] = {
-	// text  num,   U   D   L   R  Push Pos  cur_menu			current_setting				Rotaryfunction
-	{menu_000, 1,	0,	1,  2,  5,	0,  0,	MAIN_SCREEN,		NO_SETTING,					0 },					//0
+	// text  num,   U   D   L   R  Push Pos  cur_menu			current_setting				Rotaryfunction dataloggerFunc
+	{menu_000, 1,	0,	1,  2,  5,	0,  0,	MAIN_SCREEN,		NO_SETTING,					0,0 },						//0
 		
-	{menu_001, 1,	0,	1,	1,	1,	1,  0,  SPEED,				NO_SETTING,					0 },					//1	
-	{menu_002, 1,	2,	2,	3,	0,	2,  1,  SYSTEM_MONITOR,		NO_SETTING,					0 },					//2
-	{menu_003, 1,	3,	3,	3,	2,	3,  1,	TEMP_VOLT,			NO_SETTING,					0 },					//3
+	{menu_001, 1,	0,	1,	1,	1,	1,  0,  SPEED,				NO_SETTING,					0,0 },						//1	
+	{menu_002, 1,	2,	2,	3,	0,	2,  1,  SYSTEM_MONITOR,		NO_SETTING,					0,0 },						//2
+	{menu_003, 1,	3,	3,	3,	2,	3,  1,	TEMP_VOLT,			NO_SETTING,					0,0 },						//3
 			
-	{menu_200, 9,	4,	4,	4,	4,	4,  0,	MAIN_MENU,			NO_SETTING,					0},						//4  main menu
-	{menu_201, 9,	5,	6,	0,	9,  14,	1,  MAIN_MENU,			NO_SETTING,					0},						//5	 Device Status  
-	{menu_202, 9,	5,	7,	0,	10, 19,	2,  MAIN_MENU,			NO_SETTING,					0},						//6  Steer calib
-	{menu_203, 9,	6,	8,	0,	11, 20,	3,  MAIN_MENU,			NO_SETTING,					0},						//7	 Torque Pedal Calibration
-	{menu_204, 9,	7,	9,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0},						//8  ECU Options
-	{menu_205, 9,	8,	10,	5,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0},						//9  IMU options
-	{menu_206, 9,	9,	11,	6,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0},						//10 Snake
-	{menu_207, 9,	10,	12,	7,	11, 11,	7,  MAIN_MENU,			NO_SETTING,					0},						//11 Datalogger
-	{menu_208, 9,	11,	12,	8,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0},						//12 placeholder options
+	{menu_200, 9,	4,	4,	4,	4,	4,  0,	MAIN_MENU,			NO_SETTING,					0,0},						//4  main menu
+	{menu_201, 9,	5,	6,	0,	9,  14,	1,  MAIN_MENU,			NO_SETTING,					0,0},						//5	 Device Status  
+	{menu_202, 9,	5,	7,	0,	10, 19,	2,  MAIN_MENU,			NO_SETTING,					0,0},						//6  Steer calib
+	{menu_203, 9,	6,	8,	0,	11, 20,	3,  MAIN_MENU,			NO_SETTING,					0,0},						//7	 Torque Pedal Calibration
+	{menu_204, 9,	7,	9,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0,0},						//8  ECU Options
+	{menu_205, 9,	8,	10,	5,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0,0},						//9  IMU options
+	{menu_206, 9,	9,	11,	6,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0,0},						//10 Snake
+	{menu_207, 9,	10,	12,	7,	11, 11,	7,  MAIN_MENU,			NO_SETTING,					0,0},						//11 Datalogger
+	{menu_208, 9,	11,	12,	8,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0,0},						//12 placeholder options
 		
 		
 
 		
-	{menu_400, 1,	10,	10,	6,	10, 10,	1,  VARIABLE,			KERS_SETTING,				0},						//13  KERS adjustment screen
+	{menu_400, 1,	10,	10,	6,	10, 10,	1,  VARIABLE,			KERS_SETTING,				0,0},						//13  KERS adjustment screen
 		
-	{menu_300, 1,	14,	14,	5,	14, 14,	1,  DEVICE_STATUS,		NO_SETTING,					0},						//14  Device status Screen
+	{menu_300, 1,	14,	14,	5,	14, 14,	1,  DEVICE_STATUS,		NO_SETTING,					0,0},						//14  Device status Screen
 		
-	{menu_900, 1,	15,	15,	15,	15,  15, 0, PERSISTENT_MSG,		NO_SETTING,					0},						//15 Drive enable message
-	{menu_901, 1,	16,	16,	16,	16,  16, 0, LC_HANDLER,			NO_SETTING,					0},						//16 LC handler
-	{menu_902, 1,	17,	17,	17,	17,  17, 0, ERROR_HANDLER,		NO_SETTING,					0},						//17 Error handler
-	{"snake",  1,	18,	18,	18,	18,  18, 0, SNAKE_GAME,			NO_SETTING,					0},						//18 Play snake
-	{"SteerCal",1,	19,	19,	19,	19,  19, 0, STEER_CALIB,		NO_SETTING,					0},						//19 Steer calib
-	{menu_500, 1,	20,	20,	20,	20,	 20, 0, TRQ_CALIB,			NO_SETTING,					0},						//20 Torque calibration screen
+	{menu_900, 1,	15,	15,	15,	15,  15, 0, PERSISTENT_MSG,		NO_SETTING,					0,0},						//15 Drive enable message
+	{menu_901, 1,	16,	16,	16,	16,  16, 0, LC_HANDLER,			NO_SETTING,					0,0},						//16 LC handler
+	{menu_902, 1,	17,	17,	17,	17,  17, 0, ERROR_HANDLER,		NO_SETTING,					0,0},						//17 Error handler
+	{"snake",  1,	18,	18,	18,	18,  18, 0, SNAKE_GAME,			NO_SETTING,					0,0},						//18 Play snake
+	{"SteerCal",1,	19,	19,	19,	19,  19, 0, STEER_CALIB,		NO_SETTING,					0,0},						//19 Steer calib
+	{menu_500, 1,	20,	20,	20,	20,	 20, 0, TRQ_CALIB,			NO_SETTING,					0,0},						//20 Torque calibration screen
 		
-	{menu_601, 4,	21,	22,	8,	21, 21,	0,  ECU_OPTIONS,		TORQUE_SETTING,				slider_torque_update},	//21 Max torque slider
-	{menu_602, 4,	21,	23,	8,	22, 22,	1,  ECU_OPTIONS,		ECU_P_SETTING,				slider_P_term_update},	//22 ECU P slider
-	{menu_603, 4,	22,	24,	8,	23, 23,	2,  ECU_OPTIONS,		ECU_D_SETTING,				slider_D_term_update},	//23 ECU D slider
-	{menu_604, 4,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		ECU_I_SETTING,				slider_I_term_update},	//24 ECU I slider
+	{menu_601, 4,	21,	22,	8,	21, 21,	0,  ECU_OPTIONS,		TORQUE_SETTING,				slider_torque_update,0},	//21 Max torque slider
+	{menu_602, 4,	21,	23,	8,	22, 22,	1,  ECU_OPTIONS,		ECU_P_SETTING,				slider_P_term_update,0},	//22 ECU P slider
+	{menu_603, 4,	22,	24,	8,	23, 23,	2,  ECU_OPTIONS,		ECU_D_SETTING,				slider_D_term_update,0},	//23 ECU D slider
+	{menu_604, 4,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		ECU_I_SETTING,				slider_I_term_update,0},	//24 ECU I slider
 	
-	{menu_700, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				createFileCommand},			//25 Create file
-	{menu_701, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				startLoggingCommand},		//26 Start logging
-	{menu_702, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				closeFileCommand},			//27 Close file
-	{menu_703, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				deleteAllFilesCommand},		//28 Delete all files
-	{menu_704, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			DL_PREALLOCATE,			slider_preallocateAmount}	//29 Amount to preallocate
+	{menu_700, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				0,createFileCommand},			//25 Create file
+	{menu_701, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				0,startLoggingCommand},			//26 Start logging
+	{menu_702, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				0,closeFileCommand},			//27 Close file
+	{menu_703, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//28 Delete all files
+	//{menu_704, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			DL_PREALLOCATE,			0,slider_preallocateAmount}	//29 Amount to preallocate
 };
 
-static void createFileCommand() {
-	xQueueSendToBack(xDataloggerCommandQueue,&CREATE_NEW_FILE);
-}
-static void startLoggingCommand() {
-	xQueueSendToBack(xDataloggerCommandQueue,&START_LOGGING);
-}
-static void closeFileCommand() {
-	xQueueSendToBack(xDataloggerCommandQueue,&CLOSE_FILE);
-}
-static void deleteAllFilesCommand() {
-	xQueueSendToBack(xDataloggerCommandQueue,&DELETE_ALL_FILES);
-}
-static void slider_preallocateAmount() {
-	
-}
-/*
-Datalogger menu functionality
-1.	Close current file
-2.	Create new file and start logging to it
-3.	Delete all files
-4.	Amount of space to preallocate?
-
-Show if a file is currently open
-
-Menu and datalogger can communicate through queues
-*/
 
 //********************************************************************//
 //-----------------------------GLOBALS--------------------------------//
@@ -419,6 +394,9 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, ECarState
 		case SNAKE_GAME:
 		snakeControlFunction(false,UP);
 		break;
+		case DL_OPTIONS:
+		DrawDataloggerInterface();
+		break;
 	}
 }
 
@@ -529,6 +507,9 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 		selected = menu[selected].push_button;
 		switch (menu[selected].current_menu) {
 			
+			case DL_OPTIONS:
+				menu[selected].dataloggerFunc();
+			break;
 			case ERROR_HANDLER:
 				//can_sendMessage(CAN0,ackMsg);
 				selected = 0; // Return to main menu
@@ -715,6 +696,9 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 		break;
 		case ECU_OPTIONS:
 		DrawECUAdjustmentScreen(var);
+		break;
+		case DL_OPTIONS:
+		DrawDataloggerInterface();
 		break;
 		//case SNAKE_GAME:
 // 		if (snakeGameState == SNAKE_OFF) {
@@ -1470,7 +1454,7 @@ static void sensorValueToRealValue(SensorValues *sensor_values,SensorRealValue *
 static void DrawMainScreen(SensorRealValue *sensor,uint8_t low_volt, uint8_t high_volt,DeviceState *devices,ECarState *car_state) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
-	drawHighVoltageSymbol();
+	DrawHighVoltageSymbol();
 	cmd(COLOR_RGB(255,255, 255));
 	cmd_text(2,10,23,OPT_FLAT,"TRACTIVE SYSTEM");
 	cmd_text(2,40,23,OPT_FLAT,"DRIVE ENABLE");
@@ -2503,7 +2487,7 @@ static void DrawSteerCalibScreen() {
 	cmd_exec();
 	
 }
-static void drawHighVoltageSymbol() {
+static void DrawHighVoltageSymbol() {
 	//cmd(CMD_COLDSTART);
 	cmd(BITMAP_SOURCE(0));
 	cmd(BITMAP_LAYOUT(RGB565, 140, 70));
@@ -2512,6 +2496,88 @@ static void drawHighVoltageSymbol() {
 	cmd(VERTEX2II(390,210,0,0));
 	//cmd(VERTEX2II(100-16, 160-16, 0, 0));
 }
+
+
+static void DrawDataloggerInterface() {
+	uint8_t pos = selected - menu[selected].position; // First position in current menu
+	uint8_t end_position  = pos + menu[pos].num_menupoints - 1;  // Last position in current menu
+	uint16_t y_position = 20;
+	uint16_t x_position = 10;
+		
+	uint16_t x_position_text = 120;
+	uint16_t y_position_text = 50;
+	
+	uint16_t button_width = 230;
+	uint16_t button_heigth = 60;
+	uint8_t vert_spacing = 62;
+		
+	cmd(CMD_DLSTART);
+	cmd(CLEAR(1, 1, 1)); // clear screen
+
+	pos = pos + 1;
+	cmd(COLOR_RGB(255,255,255));
+	for (pos; pos <= (end_position); pos ++) {
+		if ( pos == selected) {
+			cmd(BEGIN(RECTS));
+			cmd(COLOR_RGB(255,255,20)); 
+			cmd(LINE_WIDTH(16*5));
+			cmd(VERTEX2F(x_position*16,y_position*16));
+			cmd(VERTEX2F((x_position+button_width)*16, (y_position+button_heigth)*16));
+			cmd(COLOR_RGB(0,0,0));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+	
+			cmd_coldstart();
+		}
+		else {
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+		}
+		y_position += vert_spacing;
+		y_position_text += vert_spacing;
+	}
+	uint8_t font_size = 28;
+	uint32_t x_position_status_text = 360;
+	uint32_t x_pos_free_space = 420;
+	uint32_t datalogger_write_speed = 0;
+	switch (dataloggerState) {
+		case DATALOGGER_IDLE:
+			cmd_text(x_position_status_text,20,font_size,OPT_CENTER,"NO FILE OPEN");
+			cmd_text(x_position_status_text,50,font_size,OPT_CENTER,"NOT LOGGING");
+			cmd_text(x_position_status_text,80,font_size,OPT_CENTER,"W [KB]: 0");
+			cmd_text(x_position_status_text,250,font_size,OPT_CENTER,"USB NOT CONNECTED");
+		break;
+					
+		case DATALOGGER_FILE_OPEN:
+			cmd_text(x_position_status_text,20,font_size,OPT_CENTER,"FILE IS OPEN");
+			cmd_text(x_position_status_text,50,font_size,OPT_CENTER,"NOT LOGGING");
+			cmd_text(x_position_status_text,80,font_size,OPT_CENTER,"W [KB]: 0");
+			cmd_text(x_position_status_text,250,font_size,OPT_CENTER,"USB NOT CONNECTED");
+		break;
+		case DATALOGGER_LOGGING:
+			cmd_text(x_position_status_text,20,font_size,OPT_CENTER,"FILE IS OPEN");
+			cmd_text(x_position_status_text,50,font_size,OPT_CENTER,"LOGGING TO FILE");
+			cmd_text(x_position_status_text,80,font_size,OPT_CENTER,"W [KB]:");
+			cmd_number(400,80,font_size,OPT_CENTER,file_size_byte_counter*16);
+			
+			datalogger_write_speed = BUFFER_LENGTH/(stop_time-start_time);
+			cmd_text(x_position_status_text,110,font_size,OPT_CENTER,"W [KB/s]:");
+			cmd_number(400,110,font_size,OPT_CENTER,datalogger_write_speed);
+							
+			cmd_text(x_position_status_text,250,font_size,OPT_CENTER,"USB NOT CONNECTED");
+		break;
+		case DATALOGGER_USB_CONNECTED:
+			cmd_text(x_position_status_text,20,font_size,OPT_CENTER,"NO FILE OPEN");
+			cmd_text(x_position_status_text,50,font_size,OPT_CENTER,"NOT LOGGING");
+			cmd_text(x_position_status_text,80,font_size,OPT_CENTER,"W [KB]: 0");
+			cmd_text(x_position_status_text,250,font_size,OPT_CENTER,"USB CONNECTED");
+		break; 
+		
+	}
+	cmd(DISPLAY()); // display the image
+	cmd(CMD_SWAP);
+	cmd_exec();
+}
+
 
 
 //***********************************************************************************
@@ -2574,3 +2640,22 @@ static void slider_T_term_update(ERotary_direction dir, Variables *var) {
 }
 
 
+//***********************************************************************************
+//------------------------------------DATALOGGER FUNCTIONS-------------------------//
+//***********************************************************************************
+
+static void createFileCommand() {
+	xQueueSendToBack(xDataloggerCommandQueue,(uint8_t *) CREATE_NEW_FILE,0);
+}
+static void startLoggingCommand() {
+	xQueueSendToBack(xDataloggerCommandQueue,(uint8_t *) START_LOGGING,0);
+}
+static void closeFileCommand() {
+	xQueueSendToBack(xDataloggerCommandQueue,(uint8_t *) CLOSE_FILE,0);
+}
+static void deleteAllFilesCommand() {
+	xQueueSendToBack(xDataloggerCommandQueue,(uint8_t *) DELETE_ALL_FILES,0);
+}
+static void slider_preallocateAmount() {
+	
+}

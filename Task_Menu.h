@@ -187,6 +187,7 @@ typedef const struct MenuStructure {
 	EMenuName current_menu;
 	EAdjustmentParameter current_setting;
 	void (*rotaryActionFunc) (ERotary_direction rot, Variables *var);
+	void (*dataloggerFunc)(void);
 	} MenuEntry;
 
 

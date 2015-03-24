@@ -27,30 +27,7 @@ FILINFO fno;
 static void createFileName(char file_name[]);
 static void createOpenSeekNewFile();
 static void logDataToCurrentFile();
-
-
-
-
-#define BUFFER_LENGTH 16384
-//#define BUFFER_LENGTH 32768
-//#define BUFFER_LENGTH 4096
-#define BUFFER_OFFSET 35
-#define BUFFER_ADJUST ((BUFFER_LENGTH/BUFFER_OFFSET)*BUFFER_OFFSET)
-
-static char datalog_msg[BUFFER_OFFSET];
-static char dataLogger_buffer[BUFFER_LENGTH] = "";
-
-
-typedef enum {DATALOGGER_IDLE, DATALOGGER_LOGGING,DATALOGGER_USB_CONNECTED} EDataloggerStates;
-static EDataloggerStates dataloggerState;
-QueueHandle_t xDataloggerCommandQueue = NULL;
-UINT byte_written;
-static uint32_t timeStamp = 0;
-static uint32_t offset = 0;
-static uint32_t file_size_byte_counter = 0;
-static char fileName[10] = "";
-TaskHandle_t dataLoggerHandle = NULL;
-
+static void deleteAllFiles();
 
 struct SensorMsg {
 	struct CanMessage can_msg;
@@ -75,10 +52,23 @@ struct CanMessage benchmsg = {
 	.messageID = 510
 };
 
-static void getDataloggerCommands() {
-	
-}
-	
+
+static char datalog_msg[BUFFER_OFFSET];
+static char dataLogger_buffer[BUFFER_LENGTH] = "";
+
+enum EDataloggerStates dataloggerState = DATALOGGER_IDLE;
+QueueHandle_t xDataloggerCommandQueue = NULL;
+UINT byte_written;
+static uint32_t timeStamp = 0;
+static uint32_t offset = 0;
+uint32_t file_size_byte_counter = 0;
+static uint32_t preallocation_counter = 0;
+static char fileName[10] = "";
+TaskHandle_t dataLoggerHandle = NULL;
+
+uint32_t start_time = 0;
+uint32_t stop_time = 0;
+
 void dataLoggerTask() {
 	TickType_t xLastwakeTime;
 	
@@ -97,7 +87,7 @@ void dataLoggerTask() {
 		if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 0) && (dataLoggerHandle != xSemaphoreGetMutexHolder(file_access_mutex)) )   {
 			// If USB is not connected and the datalogger doesnt own the file mutex -> aquire it
 			xSemaphoreTake(file_access_mutex,portMAX_DELAY);
-			dataloggerState = DATALOGGER_IDLE;	
+			dataloggerState = DATALOGGER_IDLE;
 		}
 		else if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 1 )  && (dataLoggerHandle == xSemaphoreGetMutexHolder(file_access_mutex)) ) {
 			dataloggerState = DATALOGGER_USB_CONNECTED;
@@ -107,29 +97,37 @@ void dataLoggerTask() {
 				switch (currentCommand) {
 					case CREATE_NEW_FILE:
 						createOpenSeekNewFile();
-						
-						break;
-					case CLOSE_FILE:
-					 // If open file, close it
+						dataloggerState = DATALOGGER_FILE_OPEN;
 						break;
 					case DELETE_ALL_FILES:
-						// Delete all files
-						break;
-					case START_LOGGING:
-						// If an open file start logging
-						
+						deleteAllFiles();
 						break;
 				}
-			break;			
+			break;		
+			
+			case DATALOGGER_FILE_OPEN:
+				switch (currentCommand) {
+					case START_LOGGING:
+						offset = 0;
+						dataloggerState = DATALOGGER_LOGGING;
+					break;
+					case CLOSE_FILE:
+						offset = 0;
+						f_truncate(&file_object);
+						f_close(&file_object);
+						dataloggerState = DATALOGGER_IDLE;
+					break;
+				}
+			break;	
 			case DATALOGGER_LOGGING:
 				switch(currentCommand) {
 					case CLOSE_FILE:
 						// Stop logging and close file
 						// Transition to idle state
-						break;
-					case DELETE_ALL_FILES:
-						// Stop logging. Delete all files
-						// Transition to idle state
+						offset = 0;
+						f_truncate(&file_object);
+						f_close(&file_object);					
+						dataloggerState = DATALOGGER_IDLE;
 						break;
 					default:
 						logDataToCurrentFile();
@@ -143,21 +141,30 @@ void dataLoggerTask() {
 				xSemaphoreGive(file_access_mutex);
 			break;
 		}
-			// USB copies and deletes the file on SD card.. Open it again and start from scratch
-			createFileName(fileName);
-			
-			}
-			else {
-				vTaskDelay(2/portTICK_RATE_MS);
-			}
-		}	
+	}
+}
+
+
+
+static void deleteAllFiles() {
+	fno.lfname = 0;
+	char test_name[10] = "";
+	for (uint8_t i = 0; i < 100; i++) {
+		snprintf(test_name,10, "log%02d.txt",i);
+		decideFile = f_stat(test_name, &fno);
+		if (decideFile == FR_OK) {
+			f_unlink(test_name); // Delete the file if it exists
+		}
+		else {
+			break;
+		}
 	}
 }
 
 static void createOpenSeekNewFile() {
 	createFileName(fileName);
 	res = f_open(&file_object, (char const *)fileName, FA_OPEN_ALWAYS | FA_WRITE);
-	f_lseek(&file_object,20000000);
+	f_lseek(&file_object,PREALLOCATION_BYTES);
 	f_lseek(&file_object,0);
 	//f_truncate(&file_object);
 	file_size_byte_counter = 0;
@@ -171,15 +178,22 @@ static void logDataToCurrentFile() {
 		//can_sendMessage(CAN0, txmsg);
 		if (offset == BUFFER_ADJUST) {
 			offset = 0;			
-			uint32_t start_time = RTT->RTT_VR;		
+			
 			file_size_byte_counter += 1;
-						
+			preallocation_counter += 1;
+			taskENTER_CRITICAL();
+			start_time = RTT->RTT_VR;				
 			f_write(&file_object,dataLogger_buffer, BUFFER_LENGTH, &byte_written);
 			f_sync(&file_object);
-		
-			uint32_t stop_time = RTT->RTT_VR;
-			benchmsg.data.u32[0] = (BUFFER_LENGTH)/(stop_time-start_time);
-			can_sendMessage(CAN0,benchmsg);
+			stop_time = RTT->RTT_VR;
+			taskEXIT_CRITICAL();
+			//benchmsg.data.u32[0] = (BUFFER_LENGTH)/(stop_time-start_time);
+			//can_sendMessage(CAN0,benchmsg);
+		}
+		else if (preallocation_counter > NEW_PREALLOCATION_THRESHOLD) {
+			f_lseek(&file_object, f_tell(&file_object)	+ PREALLOCATION_BYTES	);
+			f_lseek(&file_object, f_tell(&file_object)  - PREALLOCATION_BYTES	);
+			preallocation_counter = 0;
 		}
 		else {
 			switch (SensorPacketReceive.can_msg.dataLength) {
