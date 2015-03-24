@@ -100,6 +100,15 @@ static void DrawLaunchControlProcedure(ECarState *car_state);
 
 
 //***********************************************************************************
+//------------------------------------DATALOGGER FUNCTIONS-------------------------//
+//***********************************************************************************
+static void createFileCommand();
+static void startLoggingCommand();
+static void closeFileCommand();
+static void deleteAllFilesCommand();
+static void slider_preallocateAmount();
+
+//***********************************************************************************
 //----------------------------------------MENU-------------------------------------//
 //***********************************************************************************
 const char menu_000[] = "Main";									// 0
@@ -134,44 +143,82 @@ const char menu_900[] = "Drive enable message";					// 23
 const char menu_901[] = "Launch control element";				// 24
 const char menu_902[] = "Error element";						// 25
 
+const char menu_700[] = "CREATE FILE";							// 26
+const char menu_701[] = "START LOG";							// 26
+const char menu_702[] = "CLOSE FILE";							// 26
+const char menu_703[] = "DELETE FILES";							// 26
+const char menu_704[] = "PREALLOCATE";							// 26
+
 MenuEntry menu[] = {
 	// text  num,   U   D   L   R  Push Pos  cur_menu			current_setting				Rotaryfunction
-	{menu_000, 1,	0,	1,  2,  5,	0,  0,	MAIN_SCREEN,		NO_SETTING,					0 },				//0
+	{menu_000, 1,	0,	1,  2,  5,	0,  0,	MAIN_SCREEN,		NO_SETTING,					0 },					//0
 		
-	{menu_001, 1,	0,	1,	1,	1,	1,  0,  SPEED,				NO_SETTING,					0 },				//1	
-	{menu_002, 1,	2,	2,	3,	0,	2,  1,  SYSTEM_MONITOR,		NO_SETTING,					0 },				//2
-	{menu_003, 1,	3,	3,	3,	2,	3,  1,	TEMP_VOLT,			NO_SETTING,					0 },				//3
-		
-	{menu_200, 9,	4,	4,	4,	4,	4,  0,	MAIN_MENU,			NO_SETTING,					0},					//4  main menu
-	{menu_201, 9,	5,	6,	0,	9,  14,	1,  MAIN_MENU,			NO_SETTING,					0},					//5	 Device Status  
-	{menu_202, 9,	5,	7,	0,	10, 19,	2,  MAIN_MENU,			NO_SETTING,					0},					//6  Steer calib
-	{menu_203, 9,	6,	8,	0,	11, 20,	3,  MAIN_MENU,			NO_SETTING,					0},					//7	 Torque Pedal Calibration
-	{menu_204, 9,	7,	9,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0},					//8  ECU Options
-	{menu_205, 9,	8,	10,	5,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0},					//9  IMU options
-	{menu_206, 9,	9,	11,	6,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0},					//10 Snake
-	{menu_207, 9,	10,	12,	7,	11, 11,	7,  MAIN_MENU,			NO_SETTING,					0},					//11 placeholder options
-	{menu_208, 9,	11,	12,	8,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0},					//12 placeholder options
+	{menu_001, 1,	0,	1,	1,	1,	1,  0,  SPEED,				NO_SETTING,					0 },					//1	
+	{menu_002, 1,	2,	2,	3,	0,	2,  1,  SYSTEM_MONITOR,		NO_SETTING,					0 },					//2
+	{menu_003, 1,	3,	3,	3,	2,	3,  1,	TEMP_VOLT,			NO_SETTING,					0 },					//3
+			
+	{menu_200, 9,	4,	4,	4,	4,	4,  0,	MAIN_MENU,			NO_SETTING,					0},						//4  main menu
+	{menu_201, 9,	5,	6,	0,	9,  14,	1,  MAIN_MENU,			NO_SETTING,					0},						//5	 Device Status  
+	{menu_202, 9,	5,	7,	0,	10, 19,	2,  MAIN_MENU,			NO_SETTING,					0},						//6  Steer calib
+	{menu_203, 9,	6,	8,	0,	11, 20,	3,  MAIN_MENU,			NO_SETTING,					0},						//7	 Torque Pedal Calibration
+	{menu_204, 9,	7,	9,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0},						//8  ECU Options
+	{menu_205, 9,	8,	10,	5,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0},						//9  IMU options
+	{menu_206, 9,	9,	11,	6,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0},						//10 Snake
+	{menu_207, 9,	10,	12,	7,	11, 11,	7,  MAIN_MENU,			NO_SETTING,					0},						//11 Datalogger
+	{menu_208, 9,	11,	12,	8,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0},						//12 placeholder options
 		
 		
 
 		
-	{menu_400, 1,	10,	10,	6,	10, 10,	1,  VARIABLE,			KERS_SETTING,				0},					//13  KERS adjustment screen
+	{menu_400, 1,	10,	10,	6,	10, 10,	1,  VARIABLE,			KERS_SETTING,				0},						//13  KERS adjustment screen
 		
-	{menu_300, 1,	14,	14,	5,	14, 14,	1,  DEVICE_STATUS,		NO_SETTING,					0},					//14  Device status Screen
+	{menu_300, 1,	14,	14,	5,	14, 14,	1,  DEVICE_STATUS,		NO_SETTING,					0},						//14  Device status Screen
 		
-	{menu_900, 1,	15,	15,	15,	15,  15, 0, PERSISTENT_MSG,		NO_SETTING,					0},					//15 Drive enable message
-	{menu_901, 1,	16,	16,	16,	16,  16, 0, LC_HANDLER,			NO_SETTING,					0},					//16 LC handler
-	{menu_902, 1,	17,	17,	17,	17,  17, 0, ERROR_HANDLER,		NO_SETTING,					0},					//17 Error handler
-	{"snake",  1,	18,	18,	18,	18,  18, 0, SNAKE_GAME,			NO_SETTING,					0},					//18 Play snake
-	{"SteerCal",1,	19,	19,	19,	19,  19, 0, STEER_CALIB,		NO_SETTING,					0},					//19 Steer calib
-	{menu_500, 1,	20,	20,	20,	20,	 20, 0, TRQ_CALIB,			NO_SETTING,					0},					//20 Torque calibration screen
+	{menu_900, 1,	15,	15,	15,	15,  15, 0, PERSISTENT_MSG,		NO_SETTING,					0},						//15 Drive enable message
+	{menu_901, 1,	16,	16,	16,	16,  16, 0, LC_HANDLER,			NO_SETTING,					0},						//16 LC handler
+	{menu_902, 1,	17,	17,	17,	17,  17, 0, ERROR_HANDLER,		NO_SETTING,					0},						//17 Error handler
+	{"snake",  1,	18,	18,	18,	18,  18, 0, SNAKE_GAME,			NO_SETTING,					0},						//18 Play snake
+	{"SteerCal",1,	19,	19,	19,	19,  19, 0, STEER_CALIB,		NO_SETTING,					0},						//19 Steer calib
+	{menu_500, 1,	20,	20,	20,	20,	 20, 0, TRQ_CALIB,			NO_SETTING,					0},						//20 Torque calibration screen
 		
 	{menu_601, 4,	21,	22,	8,	21, 21,	0,  ECU_OPTIONS,		TORQUE_SETTING,				slider_torque_update},	//21 Max torque slider
 	{menu_602, 4,	21,	23,	8,	22, 22,	1,  ECU_OPTIONS,		ECU_P_SETTING,				slider_P_term_update},	//22 ECU P slider
 	{menu_603, 4,	22,	24,	8,	23, 23,	2,  ECU_OPTIONS,		ECU_D_SETTING,				slider_D_term_update},	//23 ECU D slider
-	{menu_604, 4,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		ECU_I_SETTING,				slider_I_term_update}	//24 ECU I slider
+	{menu_604, 4,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		ECU_I_SETTING,				slider_I_term_update},	//24 ECU I slider
 	
+	{menu_700, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				createFileCommand},			//25 Create file
+	{menu_701, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				startLoggingCommand},		//26 Start logging
+	{menu_702, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				closeFileCommand},			//27 Close file
+	{menu_703, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				deleteAllFilesCommand},		//28 Delete all files
+	{menu_704, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			DL_PREALLOCATE,			slider_preallocateAmount}	//29 Amount to preallocate
 };
+
+static void createFileCommand() {
+	xQueueSendToBack(xDataloggerCommandQueue,&CREATE_NEW_FILE);
+}
+static void startLoggingCommand() {
+	xQueueSendToBack(xDataloggerCommandQueue,&START_LOGGING);
+}
+static void closeFileCommand() {
+	xQueueSendToBack(xDataloggerCommandQueue,&CLOSE_FILE);
+}
+static void deleteAllFilesCommand() {
+	xQueueSendToBack(xDataloggerCommandQueue,&DELETE_ALL_FILES);
+}
+static void slider_preallocateAmount() {
+	
+}
+/*
+Datalogger menu functionality
+1.	Close current file
+2.	Create new file and start logging to it
+3.	Delete all files
+4.	Amount of space to preallocate?
+
+Show if a file is currently open
+
+Menu and datalogger can communicate through queues
+*/
 
 //********************************************************************//
 //-----------------------------GLOBALS--------------------------------//
@@ -257,6 +304,8 @@ void dashTask() {
 	variableConfTimer		= xTimerCreate("varTimer",3000/portTICK_RATE_MS,pdFALSE,0,vVarConfTimerCallback);
 	TSLedTimer				= xTimerCreate("TSLed", 300/portTICK_RATE_MS,pdTRUE,0,vTSLedTimerCallback);
 	createAndStartMenuUpdateTimers();
+	
+	xDataloggerCommandQueue = xQueueCreate(1,sizeof(uint8_t));
 	//Init states
 	SensorValues sensor_values;
 	SensorRealValue sensor_real;
