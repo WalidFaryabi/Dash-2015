@@ -124,7 +124,7 @@ const char menu_203[] = "TORQUE CALIBRATION";					// 7
 const char menu_204[] = "ECU SETTINGS";							// 8
 const char menu_205[] = "IMU SETTINGS";							// 9
 const char menu_206[] = "SNAKE";								// 10
-const char menu_207[] = "EMPTY";								// 11
+const char menu_207[] = "DATALOGGER";								// 11
 const char menu_208[] = "EMPTY";								// 12
 
 const char menu_300[] = "DEVICE STATUS";						// 13
@@ -144,11 +144,10 @@ const char menu_900[] = "Drive enable message";					// 23
 const char menu_901[] = "Launch control element";				// 24
 const char menu_902[] = "Error element";						// 25
 
-const char menu_700[] = "CREATE FILE";							// 26
-const char menu_701[] = "START LOG";							// 26
-const char menu_702[] = "CLOSE FILE";							// 26
-const char menu_703[] = "DELETE FILES";							// 26
-const char menu_704[] = "PREALLOCATE";							// 26
+const char menu_700[] = "START";								// 26
+const char menu_701[] = "CLOSE FILE";							// 27
+const char menu_702[] = "DELETE FILES";							// 28
+const char menu_703[] = "PREALLOCATE";							// 29
 
 MenuEntry menu[] = {
 	// text  num,   U   D   L   R  Push Pos  cur_menu			current_setting				Rotaryfunction dataloggerFunc
@@ -165,7 +164,7 @@ MenuEntry menu[] = {
 	{menu_204, 9,	7,	9,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0,0},						//8  ECU Options
 	{menu_205, 9,	8,	10,	5,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0,0},						//9  IMU options
 	{menu_206, 9,	9,	11,	6,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0,0},						//10 Snake
-	{menu_207, 9,	10,	12,	7,	11, 11,	7,  MAIN_MENU,			NO_SETTING,					0,0},						//11 Datalogger
+	{menu_207, 9,	10,	12,	7,	11, 25,	7,  MAIN_MENU,			NO_SETTING,					0,0},						//11 Datalogger
 	{menu_208, 9,	11,	12,	8,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0,0},						//12 placeholder options
 		
 		
@@ -187,14 +186,12 @@ MenuEntry menu[] = {
 	{menu_603, 4,	22,	24,	8,	23, 23,	2,  ECU_OPTIONS,		ECU_D_SETTING,				slider_D_term_update,0},	//23 ECU D slider
 	{menu_604, 4,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		ECU_I_SETTING,				slider_I_term_update,0},	//24 ECU I slider
 	
-	{menu_700, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				0,createFileCommand},			//25 Create file
-	{menu_701, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				0,startLoggingCommand},			//26 Start logging
-	{menu_702, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				0,closeFileCommand},			//27 Close file
-	{menu_703, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//28 Delete all files
+	{menu_700, 3,	25,	26,	11,	25, 25,	0,  DL_OPTIONS,			NO_SETTING,				0,startLoggingCommand},			//25 Create file
+	{menu_701, 3,	25,	27,	11,	26, 26,	1,  DL_OPTIONS,			NO_SETTING,				0,closeFileCommand},			//26 Start logging
+	{menu_702, 3,	26,	27, 11,	27, 27,	2,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//27 Close file
+	//{menu_703, 4,	27,	28,	11,	28, 28,	3,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//28 Delete all files
 	//{menu_704, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			DL_PREALLOCATE,			0,slider_preallocateAmount}	//29 Amount to preallocate
 };
-
-
 //********************************************************************//
 //-----------------------------GLOBALS--------------------------------//
 //********************************************************************//
@@ -206,8 +203,12 @@ MenuEntry menu[] = {
 #define ERROR_HANDLER_POS 17
 #define LC_HANDLER_POS 16
 
+
 #define NUM_MENUS_UPDATE 1 // Number of menus to specifiy a certain update frequency for
 #define RTDS_DURATION_MS 3000
+#define WATCHDOG_RESET_COMMAND  ( (0xA5 << 24) | (1<<0)) // Command to write to WDT CR register to reset the counter
+
+
 static TimerHandle_t TSLedTimer;
 static TimerHandle_t RTDSTimer;
 static TimerHandle_t LC_timer;
@@ -280,7 +281,7 @@ void dashTask() {
 	TSLedTimer				= xTimerCreate("TSLed", 300/portTICK_RATE_MS,pdTRUE,0,vTSLedTimerCallback);
 	createAndStartMenuUpdateTimers();
 	
-	xDataloggerCommandQueue = xQueueCreate(1,sizeof(uint8_t));
+	
 	//Init states
 	SensorValues sensor_values;
 	SensorRealValue sensor_real;
@@ -308,23 +309,18 @@ void dashTask() {
 	//delay_ms(50);
 	xSemaphoreTake(spi_handlerIsDoneSempahore,0);
 	FT800_Init();
-	spi_setBaudRateHz(120000000,20000000,0); // Increase speed after init
-	
 	//Need to delay 50 ms after the init of ft800 before any transfers to it happen
 	vTaskDelay(50/portTICK_RATE_MS);
-	
+	spi_setBaudRateHz(120000000,20000000,0); // Increase speed after init
 	//Upload the highvoltage icon to the FT800 
 	uint32_t ram_offset=0;
 	for(int i=0; i<4130; i++){
 		wr16(ram_offset, high_voltage_symbol[i]);
 		ram_offset +=2;
 	}
-	uint8_t dataidg = 0;	
-	struct CanMessage rdata;
-	rdata.messageID = 12;
-	rdata.dataLength = 1;
-	rdata.data.u8[0] = 5;
+	
 	while(1) {
+		WDT->WDT_CR = WATCHDOG_RESET_COMMAND; // Restart watchdog timer
 		//can_sendMessage(CAN0,rdata);
 		//Get relevant CAN messages from the specified freeRTOS queue
 		getDashMessages(&var,&conf_msgs,&error,&sensor_values, &status,&sensor_real);
@@ -504,8 +500,7 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 	else if (btn->btn_type == DASH_ACK) {
 		// Check if there is an error first.. Since acknowledge button is used for both variables and errors / faults
 		
-		// This is for choosing a selected menu
-		selected = menu[selected].push_button;
+		
 		switch (menu[selected].current_menu) {
 			
 			case DL_OPTIONS:
@@ -540,6 +535,8 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 				}
 			break;
 		}
+		// This is for choosing a selected menu
+		selected = menu[selected].push_button;
 		btn->dash_acknowledge = false;
 	}
 	
@@ -940,6 +937,8 @@ static bool trq_ch1_ok = false;
 static bool trq_noCalib_ch0 = false;
 static bool trq_noCalib_ch1 = false;
 static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
+	
+	
 	switch(trq_calib_state) {
 		case TRQ_CALIBRATION_OFF:
 			DrawTorqueCalibrationScreen(conf_msgs);
@@ -1020,7 +1019,6 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				can_freeRTOSSendMessage(CAN1,TorquePedalCalibrationMin);
 				trq_calib_timed_out = false; // Reset time out flag
 				xTimerReset(calibrationTimer,5/portTICK_RATE_MS);
-				//xTimerStart(calibrationTimer,2/portTICK_RATE_MS);
 			}
 		break;
 
@@ -1128,20 +1126,20 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				//can_freeRTOSSendMessage(CAN0,SteeringCalibrationLeft);
 				//can_freeRTOSSendMessage(CAN1,SteeringCalibrationLeft);
 				xTimerReset(calibrationTimer,15/portTICK_RATE_MS);	
-				
-				
 			}
 			break;
 		case STEER_C_WAITING_LEFT:
 			if (steer_calib_timed_out == false) {
 				switch (conf_msgs->conf_steer) {
 					case STEER_CONF_LEFT:
+						steer_calib_state = STEER_C_LEFT_CONFIRMED;
 					break;
 					case STEER_CONF_FAILED:
+						steer_calib_state = STEER_C_FAIL;
 					break;
 				}
 			}
-			else {
+			else if (steer_calib_timed_out == true) {
 				steer_calib_state = STEER_C_TIMEOUT;
 			}
 		break;
@@ -1170,7 +1168,7 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 					break;
 				}
 			}
-			else {
+			else if (steer_calib_timed_out == true) {
 				steer_calib_state = STEER_C_TIMEOUT;
 			}
 			break;
@@ -1182,7 +1180,6 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				steer_calib_state = STEER_C_OFF;
 				selected = MAIN_MENU_POS;
 				steer_calib_timed_out = false;
-				xTimerReset(calibrationTimer,5/portTICK_RATE_MS);
 			}
 			break;
 		case STEER_C_FAIL:
@@ -1191,8 +1188,7 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				conf_msgs->conf_steer = STEER_CONF_DEFAULT;
 				steer_calib_state = STEER_C_OFF;
 				selected = MAIN_MENU_POS;
-				steer_calib_timed_out = false;
-				xTimerReset(calibrationTimer,5/portTICK_RATE_MS);
+				steer_calib_timed_out = false;	
 			}
 		break;
 		case STEER_C_TIMEOUT:
@@ -1202,7 +1198,6 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				steer_calib_state = STEER_C_OFF;
 				selected = MAIN_MENU_POS;
 				steer_calib_timed_out = false;
-				xTimerReset(calibrationTimer,5/portTICK_RATE_MS);
 			}
 		break;
 	}
@@ -2515,7 +2510,7 @@ static void DrawDataloggerInterface() {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 
-	pos = pos + 1;
+	//pos = pos + 1;
 	cmd(COLOR_RGB(255,255,255));
 	for (pos; pos <= (end_position); pos ++) {
 		if ( pos == selected) {
@@ -2537,40 +2532,47 @@ static void DrawDataloggerInterface() {
 		y_position_text += vert_spacing;
 	}
 	uint8_t font_size = 28;
-	uint32_t x_position_status_text = 360;
+	uint32_t x_position_status_text = 260;
 	uint32_t x_pos_free_space = 420;
 	uint32_t datalogger_write_speed = 0;
+	cmd(COLOR_RGB(255,255,255));
 	switch (dataloggerState) {
 		case DATALOGGER_IDLE:
-			cmd_text(x_position_status_text,20,font_size,OPT_CENTER,"NO FILE OPEN");
-			cmd_text(x_position_status_text,50,font_size,OPT_CENTER,"NOT LOGGING");
-			cmd_text(x_position_status_text,80,font_size,OPT_CENTER,"W [KB]: 0");
-			cmd_text(x_position_status_text,250,font_size,OPT_CENTER,"USB NOT CONNECTED");
+			cmd(COLOR_RGB(255,0,0));
+			cmd_text(x_position_status_text,20,font_size,OPT_FLAT,"NOT LOGGING");
+			cmd(COLOR_RGB(255,255,255));
+			//cmd_text(x_position_status_text,80,font_size,OPT_FLAT,"W [KB]: 0");
+			cmd_text(x_position_status_text,50,font_size,OPT_FLAT,"FILES:");
+			cmd_number(390,50,font_size,OPT_FLAT, number_of_files_sdcard);
+			cmd_text(x_position_status_text,200,font_size,OPT_FLAT,"USB NOT CONNECTED");
 		break;
-					
-		case DATALOGGER_FILE_OPEN:
-			cmd_text(x_position_status_text,20,font_size,OPT_CENTER,"FILE IS OPEN");
-			cmd_text(x_position_status_text,50,font_size,OPT_CENTER,"NOT LOGGING");
-			cmd_text(x_position_status_text,80,font_size,OPT_CENTER,"W [KB]: 0");
-			cmd_text(x_position_status_text,250,font_size,OPT_CENTER,"USB NOT CONNECTED");
-		break;
+
 		case DATALOGGER_LOGGING:
-			cmd_text(x_position_status_text,20,font_size,OPT_CENTER,"FILE IS OPEN");
-			cmd_text(x_position_status_text,50,font_size,OPT_CENTER,"LOGGING TO FILE");
-			cmd_text(x_position_status_text,80,font_size,OPT_CENTER,"W [KB]:");
-			cmd_number(400,80,font_size,OPT_CENTER,file_size_byte_counter*16);
+			cmd(COLOR_RGB(0,255,0));
+			cmd_text(x_position_status_text,20,font_size,OPT_FLAT,"LOGGING TO FILE");
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_position_status_text,50,font_size,OPT_FLAT,"FILES:");
+			cmd_number(390,50,font_size,OPT_FLAT, number_of_files_sdcard);
+			
+			cmd_text(x_position_status_text,80,font_size,OPT_FLAT,"W [KB]:");
+			cmd_number(400,80,font_size,OPT_FLAT,file_size_byte_counter*16);
 			
 			datalogger_write_speed = BUFFER_LENGTH/(stop_time-start_time);
-			cmd_text(x_position_status_text,110,font_size,OPT_CENTER,"W [KB/s]:");
-			cmd_number(400,110,font_size,OPT_CENTER,datalogger_write_speed);
-							
-			cmd_text(x_position_status_text,250,font_size,OPT_CENTER,"USB NOT CONNECTED");
+			cmd_text(x_position_status_text,110,font_size,OPT_FLAT,"W [KB/s]:");
+			cmd_number(400,110,font_size,OPT_FLAT,datalogger_write_speed);
+				
+			cmd_text(x_position_status_text,200,font_size,OPT_FLAT,"USB NOT CONNECTED");
 		break;
+		
 		case DATALOGGER_USB_CONNECTED:
-			cmd_text(x_position_status_text,20,font_size,OPT_CENTER,"NO FILE OPEN");
-			cmd_text(x_position_status_text,50,font_size,OPT_CENTER,"NOT LOGGING");
-			cmd_text(x_position_status_text,80,font_size,OPT_CENTER,"W [KB]: 0");
-			cmd_text(x_position_status_text,250,font_size,OPT_CENTER,"USB CONNECTED");
+			cmd(COLOR_RGB(255,0,0));
+			cmd_text(x_position_status_text,20,font_size,OPT_FLAT,"NOT LOGGING");
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_position_status_text,50,font_size,OPT_FLAT,"FILES:");
+			cmd_number(390,50,font_size,OPT_FLAT, number_of_files_sdcard);
+			//cmd_text(x_position_status_text,80,font_size,OPT_FLAT,"W [KB]: 0");
+			cmd(COLOR_RGB(0,255,0));
+			cmd_text(x_position_status_text,200,font_size,OPT_FLAT,"USB CONNECTED");
 		break; 
 		
 	}
@@ -2649,13 +2651,16 @@ static void createFileCommand() {
 	xQueueSendToBack(xDataloggerCommandQueue,(uint8_t *) CREATE_NEW_FILE,0);
 }
 static void startLoggingCommand() {
-	xQueueSendToBack(xDataloggerCommandQueue,(uint8_t *) START_LOGGING,0);
+	static enum EDataloggerCommands command = START_LOGGING;
+	xQueueSendToBack(xDataloggerCommandQueue,&command,0);
 }
 static void closeFileCommand() {
-	xQueueSendToBack(xDataloggerCommandQueue,(uint8_t *) CLOSE_FILE,0);
+	static enum EDataloggerCommands command = CLOSE_FILE;
+	xQueueSendToBack(xDataloggerCommandQueue,&command,0);
 }
 static void deleteAllFilesCommand() {
-	xQueueSendToBack(xDataloggerCommandQueue,(uint8_t *) DELETE_ALL_FILES,0);
+	static enum EDataloggerCommands command = DELETE_ALL_FILES;
+	xQueueSendToBack(xDataloggerCommandQueue,&command,0);
 }
 static void slider_preallocateAmount() {
 	

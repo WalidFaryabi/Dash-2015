@@ -21,6 +21,7 @@ extern TaskHandle_t dataLoggerHandle;
 extern uint32_t file_size_byte_counter;
 extern uint32_t start_time;
 extern uint32_t	stop_time; 
+extern uint8_t number_of_files_sdcard;
 
 enum EDataloggerStates		{DATALOGGER_IDLE,DATALOGGER_FILE_OPEN, DATALOGGER_LOGGING,DATALOGGER_USB_CONNECTED};
 extern enum EDataloggerStates dataloggerState;

@@ -96,7 +96,7 @@ extern uint32_t SystemCoreClock;
 #define configMAX_PRIORITIES					( 5 )
 #define configMINIMAL_STACK_SIZE				( ( unsigned short ) 120 )
 //#define configTOTAL_HEAP_SIZE					( ( size_t ) ( 47 * 1024 ) )
-#define configTOTAL_HEAP_SIZE					( ( size_t ) ( 70 * 1024 ) )
+#define configTOTAL_HEAP_SIZE					( ( size_t ) ( 47 * 1024 ) )
 #define configMAX_TASK_NAME_LEN					( 10 )
 #define configUSE_TRACE_FACILITY				1
 #define configUSE_16_BIT_TICKS					0
@@ -148,6 +148,7 @@ to exclude the API function. */
 #define INCLUDE_vTaskDelay				1
 #define INCLUDE_eTaskGetState			1
 #define INCLUDE_xTimerPendFunctionCall	1
+#define INCLUDE_xSemaphoreGetMutexHolder 1
 
 /* Cortex-M specific definitions. */
 #ifdef __NVIC_PRIO_BITS

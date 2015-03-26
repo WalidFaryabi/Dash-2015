@@ -39,8 +39,10 @@
 Changed:
 PMC and Pio modified
 Feertosconfig. Changed max timer queue, increased freertos heap (find a good reason for this)
+INCLUDE_xSemaphoreGetMutexHolder 1 This is not default in freertos ocnfig h
 */
 
+#define WATCHDOG_DOWN_COUNTER 769 // 3 seconds
 
 static void hardwareInit();
 
@@ -54,7 +56,7 @@ int main(void) {
 	spi_mutex = xSemaphoreCreateMutex();
 	can_mutex_0 = xSemaphoreCreateMutex();
 	can_mutex_1 = xSemaphoreCreateMutex();
-	
+	xDataloggerCommandQueue = xQueueCreate(1,sizeof(uint8_t));
 	
 	BaseType_t status;
 	uint32_t bytesremaining;
@@ -63,7 +65,7 @@ int main(void) {
 	bytesremaining = xPortGetFreeHeapSize();
 	status = xTaskCreate(usbMscTask,"MscTask",1000, NULL, tskIDLE_PRIORITY + 1, &mscTaskHandle);
 	bytesremaining = xPortGetFreeHeapSize();
-	//status = xTaskCreate(dataLoggerTask,"Datalogger",2500,NULL,tskIDLE_PRIORITY +4, &dataLoggerHandle);
+	status = xTaskCreate(dataLoggerTask,"Datalogger",2500,NULL,tskIDLE_PRIORITY +3, &dataLoggerHandle);
 	bytesremaining = xPortGetFreeHeapSize();
 	status = xTaskCreate(Task_remoteControl,"remote",500, NULL, tskIDLE_PRIORITY + 2,NULL);
 	bytesremaining = xPortGetFreeHeapSize();
@@ -73,12 +75,15 @@ int main(void) {
 	vTaskStartScheduler();
 	
 	while(1) {
-		
+	
 	}
 }
 
+
 static void hardwareInit() {
-	WDT->WDT_MR |= 1<<15; // Disable Watch dog timer
+	//WDT->WDT_MR |= 1<<15; // Disable Watch dog timer
+	WDT->WDT_MR |= WATCHDOG_DOWN_COUNTER;
+	
 	irq_initialize_vectors();
 	cpu_irq_enable();
 	init_flash();

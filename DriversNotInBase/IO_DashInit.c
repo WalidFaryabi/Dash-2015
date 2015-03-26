@@ -36,6 +36,7 @@ void dash_io_init() {
 	pio_inputDebounce(NAVIGATION_R_PIO,NAVIGATION_R_PIN,653,DEBOUNCE);
 	pio_inputDebounce(NAVIGATION_D_PIO,NAVIGATION_D_PIN,653,DEBOUNCE);
 	pio_inputDebounce(NAVIGATION_U_PIO,NAVIGATION_U_PIN,653,DEBOUNCE);
+	pio_inputDebounce(SYS_ACK_PIO,SYS_ACK_PIN,653,DEBOUNCE);
 	pio_inputDebounce(START_PIO,START_PIN,653,DEBOUNCE);
 	pio_inputDebounce(ROT_PUSH3_PIO,ROT_PUSH3_PIN,653,DEBOUNCE);
 	pio_disableOutput(ROT_A_PIO,ROT_A_PIN);

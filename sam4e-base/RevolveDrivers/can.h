@@ -20,18 +20,18 @@ typedef union can_data_t{
 	uint64_t u64;
 	int64_t  i64;
 	uint32_t u32[2];
-	int32_t  i32[2]; 
+	int32_t  i32[2];
 	uint16_t u16[4];
 	int16_t  i16[4];
 	uint8_t  u8[8];
 	int8_t   i8[8];
-	}CanData ;
+}CanData ;
 
 struct CanMessage{
 	CanData data;
 	uint8_t dataLength;
 	uint32_t messageID;
-}; 
+};
 
 void can_init(Can *can, uint32_t peripheral_clock_hz, uint32_t baudrate_kbps);
 void can_setupFilters(Can *can, uint32_t acceptence_masks[7], uint32_t id_masks[7]);

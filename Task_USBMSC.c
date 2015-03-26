@@ -28,7 +28,11 @@ void usbMscTask() {
 	
 	// Create a semaphore to manage the memories data transfer
 	main_trans_semphr = xSemaphoreCreateBinary();
-	
+	NVIC_DisableIRQ((IRQn_Type) ID_UDP); //Interrupts must be turned off
+	udd_enable_periph_ck(); // UDP peripheral clock must be enabled to change UDP register settings
+	UDP->UDP_TXVC |= 1 <<8;
+	UDP->UDP_TXVC &= ~(1<<9);
+	udc_stop(); // Stop UDP and detach (disable pullup on DDP which fucks with voltage level on detect pin)
 	while(1) {
 		if (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 1){
 			xSemaphoreTake(file_access_mutex,portMAX_DELAY);
