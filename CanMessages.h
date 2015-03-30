@@ -46,7 +46,32 @@ struct CanMessage FinishedRTDS = {
 	.messageID = ID_FINISHED_RTDS,
 	.dataLength = 1,
 	.data.u8[0] = 1
-	};
+};
+struct CanMessage RequestDriveDisable = {
+	.messageID = ID_ECU_DRIVE,
+	.dataLength = 1,
+	.data.u8[0] = 0
+};
+struct CanMessage RequestDriveEnable = {
+	.messageID = ID_ECU_DRIVE,
+	.dataLength = 1,
+	.data.u8[0] = 1
+};
+
+struct CanMessage RequestLCInit = {
+	.messageID = ID_ECU_LC,
+	.dataLength = 1,
+	.data.u8[0] = 1
+};
+
+struct CanMessage RequestLCArmed = {
+	.messageID = ID_ECU_LC,
+	.dataLength = 1,
+	.data.u8[0] = 2
+};
+
+	
+
 
 
 #endif /* CANMESSAGES_H_ */

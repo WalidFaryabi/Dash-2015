@@ -130,7 +130,7 @@ void dataLoggerTask() {
 						logDataToCurrentFile();
 						break;
 				}
-
+				// The delay is in the queuereceive function now.
 				//vTaskDelay(1); // This needs confirmation based on speed requirements etc.
 			break;
 			

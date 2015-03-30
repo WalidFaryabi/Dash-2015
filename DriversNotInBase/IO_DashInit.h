@@ -35,7 +35,6 @@
 #define SYS_ACK_PIO PIOD // Uses the slot meant for KERS switch
 #define SYS_ACK_PIN 24
 
-
 #define AMS_LED_PIO PIOA	
 #define AMS_LED_PIN 22
 
@@ -59,8 +58,6 @@
 
 #define DEVICE_LED_PIO PIOC
 #define DEVICE_LED_PIN 7
-
-
 
 #define BUZZER_PIO PIOD
 #define BUZZER_PIN 0

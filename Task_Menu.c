@@ -41,7 +41,7 @@ static void clearAllButtons();
 static bool checkForError(ModuleError *error);
 static void HandleErrors(ModuleError *error);
 
-static bool torquePedalNotReleased(SensorRealValue *sensor_real);
+static bool torquePedalPushedIn(SensorRealValue *sensor_real);
 static bool brakesNotActive(SensorRealValue *sensor_real);
 static bool bmsNotCharged(SensorRealValue *sensor_real);
 
@@ -227,6 +227,8 @@ SemaphoreHandle_t spi_semaphore = NULL;
 SemaphoreHandle_t can_mutex_0 = NULL;
 SemaphoreHandle_t can_mutex_1 = NULL;
 
+static bool RTDS_finished_playing = false;
+
 typedef struct menuUpdateFrequency { // Private global for this source
 	bool update_mainScreen;
 } menuUpdateStatus;
@@ -237,11 +239,7 @@ menuUpdateStatus menuUpdate = {
 uint8_t selected = 0; // Variable that keep tracks of where you are in the array of structs that is the menu
 Buttons btn = {
 	.btn_type				= NONE_BTN,
-	.dash_acknowledge		= false,
-	.system_acknowledge		= false,
-	.start_button			= false,
 	.navigation				= NAV_DEFAULT,
-	.launch_control			= false,
 	.rotary_ccw				= false,
 	.rotary_cw				= false,
 	.unhandledButtonAction  = false
@@ -340,6 +338,12 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, ECarState
 	if (checkForError(error)) {
 		HandleErrors(error);
 	}
+	
+	if (RTDS_finished_playing) {
+		can_freeRTOSSendMessage(CAN0, FinishedRTDS);
+		RTDS_finished_playing = false;
+	}
+	
 	if (btn->unhandledButtonAction) {
 		HandleButtonActions(btn, car_state, sensor_real_value, device_state, var,error,conf_msgs);
 	}
@@ -389,7 +393,14 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, ECarState
 		break;
 		
 		case SNAKE_GAME:
-		snakeControlFunction(false,UP);
+		if (snakeGameState == SNAKE_OFF) {
+			snakeGameState = SNAKE_PREPPING;
+			snakeControlFunction(false,UP);
+		}
+		else {
+			snakeControlFunction(false,UP);
+		}
+		
 		break;
 		case DL_OPTIONS:
 		DrawDataloggerInterface();
@@ -431,16 +442,15 @@ static void changeCarState(ConfirmationMsgs *conf_msgs, ECarState *car_state, St
 			break;
 		case LC_PROCEDURE:
 			DrawLaunchControlProcedure(car_state);
-			if ( (torquePedalNotReleased(sensor_real)) && (brakesNotActive(sensor_real)) ) {
-				if (btn.system_acknowledge == true) {
+			if ( (torquePedalPushedIn(sensor_real)) && (brakesNotActive(sensor_real)) ) {
+				if ( btn.btn_type = PUSH_ACK) {
 					*car_state = LC_COUNTDOWN;
 					xTimerStart(LC_timer,1000/portTICK_RATE_MS);
 					btn.btn_type = NONE_BTN;
-					btn.system_acknowledge = false;
 					btn.unhandledButtonAction = false;
 				}
 			}
-			else if (torquePedalNotReleased(sensor_real) == false) {
+			else if (torquePedalPushedIn(sensor_real) == false) {
 				*car_state = DRIVE_ENABLED;
 			}
 			else if (status->shut_down_circuit_closed == false) {
@@ -458,6 +468,8 @@ static void changeCarState(ConfirmationMsgs *conf_msgs, ECarState *car_state, St
 					*car_state = LC_WAITING_FOR_LC_READY;
 					xTimerReset(LC_timer,5/portTICK_RATE_MS);
 					//Send can message that countdown is finished
+					
+					can_freeRTOSSendMessage(CAN0,RequestLCArmed);
 				}
 			}
 			else {
@@ -480,7 +492,7 @@ static void changeCarState(ConfirmationMsgs *conf_msgs, ECarState *car_state, St
 			break;
 		case LC_ARMED:
 			DrawLaunchControlProcedure(car_state);
-			if (torquePedalNotReleased(sensor_real) == false) {
+			if (torquePedalPushedIn(sensor_real) == false) {
 				*car_state = DRIVE_ENABLED;
 				selected = 0;
 			}
@@ -492,12 +504,11 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 						 Variables *var, ModuleError *error, ConfirmationMsgs *conf_msgs) { 
 	if (btn->btn_type == NAVIGATION) {
 		NavigateMenu(device_state, var,error, sensor_real,car_state);
-		btn->navigation = NAV_DEFAULT;
+		
 	}
-	
 	// If changing a variable and acknowledge button is pressed the selection will be confirmed,
 	// the value sent by CAN.
-	else if (btn->btn_type == DASH_ACK) {
+	else if (btn->btn_type == PUSH_ACK) {
 		// Check if there is an error first.. Since acknowledge button is used for both variables and errors / faults
 		
 		
@@ -537,7 +548,6 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 		}
 		// This is for choosing a selected menu
 		selected = menu[selected].push_button;
-		btn->dash_acknowledge = false;
 	}
 	
 	else if (btn->btn_type == SYS_ACK) {
@@ -545,16 +555,13 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 	}
 	
 	else if (btn->btn_type == LAUNCH_CONTROL) {
-		if (btn->launch_control == true) {
-			if (*car_state == DRIVE_ENABLED) {
-				//Request Launch control from ECU
-				//Send CAN message
-				//Handle launch control in other function
-			}
-		}
-		btn->launch_control = false;
-	}
+		if (*car_state == DRIVE_ENABLED) {
+			//Request Launch control from ECU
+			//Send CAN message
+			can_freeRTOSSendMessage(CAN0,RequestLCInit);
 
+		}
+	}
 	else if (btn->btn_type == ROTARY) {
 		// If currently looking at a variable to adjust, call the specific function to adjust this value
 		if (menu[selected].current_menu == ECU_OPTIONS){ //Add the different option names
@@ -567,15 +574,17 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 				}
 			}
 		}
-		btn->rotary_ccw = false;
-		btn->rotary_cw  = false;
+		
 	}
 	else if (btn->btn_type == START) {
 		if (*car_state == DRIVE_ENABLED) {
 			// Request shut down
+			can_freeRTOSSendMessage(CAN0, RequestDriveDisable);
 		}
 		else if (*car_state == TRACTIVE_SYSTEM_ON) {
 			//Request car start
+			// If criterias satisfied
+			can_freeRTOSSendMessage(CAN0, RequestDriveEnable);
 		}
 		
 		/*if (btn->drive_switch_disable == true) {
@@ -593,7 +602,7 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 			bool brake_pedal_not_pressed = false;
 			bool bms_discharge = false;
 			if (*car_state == TRACTIVE_SYSTEM_ON) {
-				if (torquePedalNotReleased(sensor_real) ) {
+				if (torquePedalPushedIn(sensor_real) ) {
 					drive_enable_criterias = false;
 					torque_pedal_not_pressed = true;
 				}
@@ -618,6 +627,9 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 			}
 		}*/
 	}
+	btn->rotary_ccw = false;
+	btn->rotary_cw  = false;
+	btn->navigation = NAV_DEFAULT;
 	btn->unhandledButtonAction = false;
 	btn->btn_type = NONE_BTN;
 }
@@ -828,7 +840,6 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 				switch (ReceiveMsg.data.u8[1]) {
 					case 1:
 					//TS active
-					//
 					status->shut_down_circuit_closed = true;
 					break;
 					case 2:
@@ -847,7 +858,7 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 					break;
 				}
 			break;
-			case ID_ECU_LC:
+			case ID_IN_ECU_LC:
 				switch (ReceiveMsg.data.u8[1]) {
 					case 1:
 					//Last year has only lc ready and launch end. Makes more sense with lc request confirmed and lc ready and maybe launch end
@@ -874,6 +885,13 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 				sensor_real->min_battery_temperature_msb = ReceiveMsg.data.u8[7];
 			break;
 			
+			case ID_TORQUE_ENCODER_0_DATA:
+				sensor_real->torque_encoder_ch0 = ReceiveMsg.data.u8[0];
+				break;
+				
+			case ID_TORQUE_ENCODER_1_DATA:
+				sensor_real->torque_encoder_ch1 = ReceiveMsg.data.u8[0];
+				break;		
 		}
 	}
 }
@@ -889,14 +907,14 @@ static void can_freeRTOSSendMessage(Can *can,struct CanMessage message) {
 	if (can == CAN0) {
 		xSemaphoreTake(can_mutex_0,portMAX_DELAY);
 		
-		while (can_sendMessage(can,message) != TRANSFER_OK);
+		can_sendMessage(can,message);
 		
 		xSemaphoreGive(can_mutex_0);
 	}
 	else if (can == CAN1) {
 		xSemaphoreTake(can_mutex_1,portMAX_DELAY);
 		
-			while (can_sendMessage(can,message) != TRANSFER_OK);
+		can_sendMessage(can,message);
 		
 		xSemaphoreGive(can_mutex_1);
 	}
@@ -931,7 +949,6 @@ static void HandleErrors(ModuleError *error) {
 }
 
 
-
 static bool trq_ch0_ok = false;
 static bool trq_ch1_ok = false;
 static bool trq_noCalib_ch0 = false;
@@ -948,8 +965,8 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				trq_calib_timed_out = false;
 				trq_calib_state = TRQ_CALIBRATION_WAITING_MAX_CONFIRMATION;
 				//Send CAN message that max is being calibrated
-				//can_freeRTOSSendMessage(CAN0,TorquePedalCalibrationMax);
-				//can_freeRTOSSendMessage(CAN1,TorquePedalCalibrationMax);
+				can_freeRTOSSendMessage(CAN0,TorquePedalCalibrationMax);
+				can_freeRTOSSendMessage(CAN1,TorquePedalCalibrationMax);
 				xTimerReset(calibrationTimer,2/portTICK_RATE_MS);
 			}
 			break;
@@ -1123,8 +1140,8 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				steer_calib_timed_out = false;
 				steer_calib_state = STEER_C_WAITING_LEFT;
 				// Send CAN message that left is calibrated
-				//can_freeRTOSSendMessage(CAN0,SteeringCalibrationLeft);
-				//can_freeRTOSSendMessage(CAN1,SteeringCalibrationLeft);
+				can_freeRTOSSendMessage(CAN0,SteeringCalibrationLeft);
+				can_freeRTOSSendMessage(CAN1,SteeringCalibrationLeft);
 				xTimerReset(calibrationTimer,15/portTICK_RATE_MS);	
 			}
 			break;
@@ -1204,7 +1221,7 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 }
 
 
-static bool torquePedalNotReleased(SensorRealValue *sensor_real) {
+static bool torquePedalPushedIn(SensorRealValue *sensor_real) {
 	uint8_t torque_pedal_released_threshold = 50;
 	if ( (sensor_real->torque_encoder_ch0 > torque_pedal_released_threshold ) && (sensor_real->torque_encoder_ch1 > torque_pedal_released_threshold) ) {
 		return true;
@@ -1228,7 +1245,8 @@ static bool bmsNotCharged(SensorRealValue *sensor_real) {
 
 static void vRTDSCallback(TimerHandle_t xTimer) {
 	pio_setOutput(BUZZER_PIO,BUZZER_PIN,PIN_LOW);
-	can_sendMessage(CAN0,FinishedRTDS);
+	RTDS_finished_playing = true;
+	//can_sendMessage(CAN0,FinishedRTDS);
 }
 static void vLcTimerCallback (TimerHandle_t lcTimer) {
 	lc_timer_count += 1;
@@ -1350,14 +1368,9 @@ static void clearAllButtons() {
 	btn.unhandledButtonAction = false;
 	btn.btn_type = NONE_BTN;
 	btn.navigation = NAV_DEFAULT;
-
-	btn.system_acknowledge = false;
-	btn.dash_acknowledge = false;
-	btn.launch_control = false;
-
 	btn.rotary_ccw = false;
 	btn.rotary_cw  = false;
-	btn.start_button = false;
+
 }
 
 static bool checkDeviceStatus(DeviceState *devices) {

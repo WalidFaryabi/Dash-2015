@@ -74,9 +74,8 @@ void Task_remoteControl() {
 						btn.rotary_ccw = true;
 						break;
 					case 7: // acknowledge
-						btn.btn_type = DASH_ACK;
+						btn.btn_type = PUSH_ACK;
 						btn.unhandledButtonAction = true;
-						btn.system_acknowledge = true;
 						break;
 					default:
 						break;	

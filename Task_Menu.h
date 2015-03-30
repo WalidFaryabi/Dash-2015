@@ -16,7 +16,7 @@ typedef enum {MAIN_SCREEN,SYSTEM_MONITOR,TEMP_VOLT,MAIN_MENU,VARIABLE,DEVICE_STA
 typedef enum {NO_SETTING,TORQUE_SETTING,KERS_SETTING, ECU_P_SETTING, ECU_D_SETTING, 
 			  ECU_I_SETTING, ECU_LC_RT_SETTING, ECU_LC_INIT_TORQ_SETTING,DL_PREALLOCATE} EAdjustmentParameter;
 			  
-typedef enum {NAVIGATION,DASH_ACK,ROTARY,SYS_ACK,START,LAUNCH_CONTROL,NONE_BTN} EButtonType;
+typedef enum {NAVIGATION,PUSH_ACK,ROTARY,SYS_ACK,START,LAUNCH_CONTROL,NONE_BTN} EButtonType;
 typedef enum {UP,DOWN,LEFT,RIGHT,NAV_DEFAULT} ENavigationDirection;
 typedef enum {CCW,CW} ERotary_direction;
 typedef enum {ENABLE_SWITCH,DISABLE_SWITCH} ESwitchState;	
@@ -39,13 +39,7 @@ typedef struct ButtonsOnDashboard {
 	EButtonType btn_type;
 	ENavigationDirection navigation;
 	bool rotary_cw; // Clockwise
-	bool rotary_ccw; // Counter clockwise 
-	bool launch_control;
-	bool dash_acknowledge;
-	bool system_acknowledge;
-	//A switch will be true if there has been a transition from one state to another
-	bool start_button;
-
+	bool rotary_ccw; // Counter clockwise
 	} Buttons;
 	
 typedef struct ConfirmationMessagesReceivedOverCan {
