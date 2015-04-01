@@ -1,11 +1,3 @@
-/*
- * CanMessages.h
- *
- * Created: 08.03.2015 17:22:42
- *  Author: will
- */ 
-
-
 #ifndef CANMESSAGES_H_
 #define CANMESSAGES_H_
 
@@ -69,6 +61,12 @@ struct CanMessage RequestLCArmed = {
 	.dataLength = 1,
 	.data.u8[0] = 2
 };
+
+struct CanMessage EcuParameters = {
+	.messageID = ID_ECU_PARAMETERS,
+	.dataLength = 4,
+	.data.u32[0] = 0
+	};
 
 	
 

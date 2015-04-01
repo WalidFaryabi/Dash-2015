@@ -146,7 +146,7 @@ void Task_ButtonInput() {
 			//*************************************************************************************************//
 			//*********************************************START/ DRIVE ENABLE*********************************//
 			//*************************************************************************************************//
-			else if ( (pio_readPin(START_PIO, START_PIN) == 0) && (prevBtn.prev_start== 1) ) {
+			else if ( (pio_readPin(START_PIO, START_PIN) == 0) && (prevBtn.prev_start == 1) ) {
 				start_button_pushed_in = false;
 				start_button_time_counter = 0;
 				xTimerReset(startButtonTimer,0);

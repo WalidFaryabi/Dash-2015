@@ -192,6 +192,11 @@ MenuEntry menu[] = {
 	//{menu_703, 4,	27,	28,	11,	28, 28,	3,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//28 Delete all files
 	//{menu_704, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			DL_PREALLOCATE,			0,slider_preallocateAmount}	//29 Amount to preallocate
 };
+
+
+
+
+
 //********************************************************************//
 //-----------------------------GLOBALS--------------------------------//
 //********************************************************************//
@@ -481,6 +486,7 @@ static void changeCarState(ConfirmationMsgs *conf_msgs, ECarState *car_state, St
 			break;		
 		case LC_WAITING_FOR_LC_READY:
 			if (conf_msgs->lc_ready == true) {
+				conf_msgs->lc_ready = false;
 				*car_state = LC_ARMED;
 				lc_timer_count = 0;
 			}
@@ -521,7 +527,25 @@ static void HandleButtonActions(Buttons *btn,ECarState *car_state, SensorRealVal
 				//can_sendMessage(CAN0,ackMsg);
 				selected = 0; // Return to main menu
 			break;
-			case VARIABLE:
+			case ECU_OPTIONS:
+				switch (menu[selected].current_setting) {
+					case TORQUE_SETTING:
+						//EcuParameters.data = var->
+						//can_freeRTOSSendMessage(CAN0,)
+					break;
+					case ECU_P_SETTING:
+					
+					break;
+					
+					case ECU_D_SETTING:
+					
+					break;
+					
+					case ECU_I_SETTING:
+					
+					break;
+					
+				}
 				//selected = menu[selected].push_button;
 				//SendVariableOnCan();
 				variable_confirmation_timed_out = false;
