@@ -19,7 +19,7 @@
 #define ID_TORQUE_PEDAL_CALIBRATION	0x460
 #define ID_STEERING_CALIBRATION		0x461
 
-
+#define ID_DASH_ACKNOWLEDGE			0x660
 
 //***************************************//
 //************INCOMING*******************//
@@ -40,17 +40,25 @@
 #define ID_STEERING_CONF			0x214				//(CANR_FCN_BOOT_ID | CANR_GRP_SENS_ROTARY_ID | CANR_MODULE_ID4_ID)
 #define ID_STEERING_ENCODER_DATA	0x614
 
+#define ID_IMD_SHUTDOWN				0x671
 
 
-#define ID_brake_pressure_front		0x618
-#define ID_brake_pressure_rear		0x619
+#define ID_BRAKE_PRESSURE_FR		0x618
+#define ID_BRAKE_PRESSURE_FL		0x619
 
-#define ID_speed_FL_and_avg			0x620
-#define ID_speed_FR_and_avg			0x621
-#define ID_speed_RL_and_avg			0x622
-#define ID_speed_RR_and_avg			0x623
+#define ID_SPEED_FR					0x620
+#define ID_SPEED_FL					0x621
+#define ID_SPEED_RR					0x622
+#define ID_SPEED_RL					0x623
 
-#define ID_DASH_ACKNOWLEDGE			0x660
+#define ID_DAMPER_FR				0x650
+#define ID_DAMPER_FL				0x651
+#define ID_DAMPER_RR				0x652
+#define ID_DAMPER_RL				0x653
+
+#define ID_TEMP_COOLING				0x656
+#define ID_TEMP_GEARBOX				0x657
+
 
 
 

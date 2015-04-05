@@ -174,7 +174,7 @@ void Task_ButtonInput() {
 		
 		xSemaphoreGive(xButtonStruct);
 		
-		vTaskDelay(5/portTICK_RATE_MS);
+		vTaskDelay(20/portTICK_RATE_MS);
 	}
 }
 		//Check the push button on the rotary encoder (acknowledge button)

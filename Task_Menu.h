@@ -20,7 +20,8 @@ typedef enum {NAVIGATION,PUSH_ACK,ROTARY,SYS_ACK,START,LAUNCH_CONTROL,NONE_BTN} 
 typedef enum {UP,DOWN,LEFT,RIGHT,NAV_DEFAULT} ENavigationDirection;
 typedef enum {CCW,CW} ERotary_direction;
 typedef enum {ENABLE_SWITCH,DISABLE_SWITCH} ESwitchState;	
-typedef enum {TRACTIVE_SYSTEM_ON,TRACTIVE_SYSTEM_OFF,DRIVE_ENABLED, LC_PROCEDURE,LC_COUNTDOWN,LC_WAITING_FOR_LC_READY,LC_ARMED} ECarState;
+typedef enum {TRACTIVE_SYSTEM_ON,TRACTIVE_SYSTEM_OFF,DRIVE_ENABLED, 
+			LC_PROCEDURE,LC_STANDBY,LC_COUNTDOWN,LC_WAITING_FOR_ECU_TO_ARM_LC,LC_ARMED,LC_ABORTED,LC_ARMING_TIMED_OUT} ECarState;
 
 //typedef enum {LC_OFF,LC_REQUESTED,LC_PROCEDURE,LC_ARMED,LC_LAUNCHED} ELaunchControlStates;
 typedef enum {ALIVE,DEAD,UNITIALIZED} EAlive;
@@ -124,9 +125,11 @@ typedef struct VariableValues { // Values of adjustable variables
 	} Variables;
 	
 typedef struct SensorValuesReceivedOverCan {
-	uint32_t torque_encoder_CAN1; // f.ex
-	uint32_t torque_encoder_CAN2; // f.ex
-	uint32_t brake_pressure;
+	uint16_t brake_pressure_fr;
+	uint16_t brake_pressure_fl;
+	uint16_t temp_sensor_cooling;
+	uint16_t temp_sensor_gearbox;
+	
 	uint32_t bms_discharge_limit;
 } SensorValues;
 
@@ -169,7 +172,7 @@ typedef struct SensorRealValues {
 	} SensorRealValue;
 
 
-typedef const struct MenuStructure {
+typedef struct MenuStructure {
 	const char *text;
 	uint8_t num_menupoints;
 	uint8_t up;
@@ -193,10 +196,8 @@ extern SemaphoreHandle_t can_mutex_0;
 extern SemaphoreHandle_t can_mutex_1;
 Buttons btn;
 DeviceState device_state;
-extern MenuEntry menu[];
-extern uint8_t selected; // Current menu item in array selected ( see declaration of menu array of struct elements).
 
-
+extern uint8_t selected;
 
 
 void dashTask();

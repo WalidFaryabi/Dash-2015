@@ -28,6 +28,8 @@ QueueHandle_t xDataLoggerQueue = NULL;
 QueueHandle_t xDashQueue = NULL;
 
 
+static uint8_t torque_alive = 0;
+
 void init_CanHandling() {
 	//Init SensorPacket
 	SensorPacket.CanMsg.data.u64  = 0;
@@ -80,7 +82,7 @@ void CAN0_Handler() {
 			// Send a can message to inform that datalogger has fallen behind
 			// Thread safety on can ?
 			// Remember to turn of all other can sendmessages when testing this !!!!
-			while (can_sendMessage(CAN0,dataloggerFail) != TRANSFER_OK);
+			can_sendMessage(CAN0,dataloggerFail);
 			//Queue is full. What to do ?
 		}
 		
@@ -90,10 +92,12 @@ void CAN0_Handler() {
 				switch (message.data.u8[0]) {
 					case ALIVE_TRQ:
 					// Tells de
-					xQueueSendToBackFromISR(xDeviceStatusQueue, (uint8_t *) ALIVE_TRQ_CAN_0, NULL);
+					torque_alive = ALIVE_TRQ_CAN_0;
+					xQueueSendToBackFromISR(xDeviceStatusQueue, &torque_alive, NULL);
 					break;
 					case ALIVE_TRQ_UNINIT:
-					xQueueSendToBackFromISR(xDeviceStatusQueue, (uint8_t *) ALIVE_UNINIT_TRQ_CAN_0, NULL);
+					torque_alive = ALIVE_UNINIT_TRQ_CAN_0;
+					xQueueSendToBackFromISR(xDeviceStatusQueue, &torque_alive, NULL);
 					break;
 					default:
 					xQueueSendToBackFromISR(xDeviceStatusQueue, &message.data.u8[0], NULL);
@@ -109,12 +113,25 @@ void CAN0_Handler() {
 			case ID_BMS_MAX_MIN_VALUES:
 			case ID_TRQ_CONF_CH0:
 			case ID_TRQ_CONF_CH1:
+			case ID_TORQUE_ENCODER_0_DATA:
+			case ID_TORQUE_ENCODER_1_DATA:
 			case ID_ECU_CAR_STATES:
+			case ID_IN_ECU_LC:
+			case ID_SPEED_FL:
+			case ID_SPEED_FR:
+			case ID_SPEED_RR:
+			case ID_SPEED_RL:
+			case ID_TEMP_COOLING:
+			case ID_TEMP_GEARBOX:
+			case ID_BRAKE_PRESSURE_FL:
+			case ID_BRAKE_PRESSURE_FR:
+			case ID_DAMPER_FL:
+			case ID_DAMPER_FR:
+			case ID_DAMPER_RL:
+			case ID_DAMPER_RR:
 			case 11:
 				xQueueSendToBackFromISR(xDashQueue,&message,NULL);
 			break;
-			
-			
 		break;	
 		}
 		portEND_SWITCHING_ISR(lHigherPriorityTaskWoken);
@@ -143,22 +160,47 @@ void CAN1_Handler() {
 			dataloggerFailCounter += 1;
 			dataloggerFail.data.u32[0] = dataloggerFailCounter;
 			// Send a can message to inform that datalogger has fallen behind
-			// Thread safety on can ?
-			// Remember to turn of all other can sendmessages when testing this !!!!
-			//while (can_sendMessage(CAN1,dataloggerFail) != TRANSFER_OK);
-			//Queue is full. What to do ?
 		}
 		switch (message.messageID) {
 			case ID_ALIVE:
 				switch (message.data.u8[0]) {
 					case ALIVE_TRQ:
-					// Tells de
-					xQueueSendToBackFromISR(xDeviceStatusQueue, (uint8_t *) ALIVE_TRQ_CAN_1, NULL);
-					break;
+						torque_alive = ALIVE_TRQ_CAN_1;
+						xQueueSendToBackFromISR(xDeviceStatusQueue, &torque_alive, NULL);
+						break;
 					case ALIVE_TRQ_UNINIT:
-					xQueueSendToBackFromISR(xDeviceStatusQueue, (uint8_t *) ALIVE_UNINIT_TRQ_CAN_1, NULL);
-					break;
+						torque_alive = ALIVE_UNINIT_TRQ_CAN_1;
+						xQueueSendToBackFromISR(xDeviceStatusQueue, &torque_alive, NULL);
+						break;
+					default:
+						xQueueSendToBackFromISR(xDeviceStatusQueue, &message.data.u8[0], NULL);
+						break;
 				}
+				
+				//***************************************//
+				//--------------DASH TASK----------------//
+				//***************************************//
+				case ID_TRQ_CONF_CH0:
+				case ID_TRQ_CONF_CH1:
+				case ID_TORQUE_ENCODER_0_DATA:
+				case ID_TORQUE_ENCODER_1_DATA:
+				case ID_ECU_CAR_STATES:
+				case ID_SPEED_FL:
+				case ID_SPEED_FR:
+				case ID_SPEED_RR:
+				case ID_SPEED_RL:
+				case ID_TEMP_COOLING:
+				case ID_TEMP_GEARBOX:
+				case ID_BRAKE_PRESSURE_FL:
+				case ID_BRAKE_PRESSURE_FR:
+				case ID_DAMPER_FL:
+				case ID_DAMPER_FR:
+				case ID_DAMPER_RL:
+				case ID_DAMPER_RR:
+				case ID_IMD_SHUTDOWN:
+				case 11:
+				xQueueSendToBackFromISR(xDashQueue,&message,NULL);
+				break;
 			break;
 		}
 		portEND_SWITCHING_ISR(lHigherPriorityTaskWoken);

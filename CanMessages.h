@@ -30,14 +30,12 @@ struct CanMessage SteeringCalibrationRight = {
 
 struct CanMessage Acknowledge = {
 	.messageID = ID_DASH_ACKNOWLEDGE,
-	.data.u8[0] = 1,
-	.dataLength = 1
+	.dataLength = 0
 };
 
 struct CanMessage FinishedRTDS = {
 	.messageID = ID_FINISHED_RTDS,
-	.dataLength = 1,
-	.data.u8[0] = 1
+	.dataLength = 0
 };
 struct CanMessage RequestDriveDisable = {
 	.messageID = ID_ECU_DRIVE,
