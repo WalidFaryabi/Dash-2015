@@ -17,6 +17,8 @@
 
 #include <string.h>
 
+//VANDRING GASSPEDAL
+
 typedef enum {PEDAL_IN, PEDAL_OUT} EPedalPosition;
 //**********************************************************************************//
 //------------------------------------THE MAIN DASH FUNCTIONS-----------------------//
@@ -32,7 +34,7 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 
 static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,DeviceState *devices);
 //***********************************************************************************
-//------------------------------------MENU HELPER FUNCTIONS-------------------------//
+//------------------------------------MENU HELPER FUNCTIONS------------------------//
 //***********************************************************************************
 static void can_freeRTOSSendMessage(Can *can,struct CanMessage message);
 
@@ -57,6 +59,8 @@ static void init_conf_msgs_struct(ConfirmationMsgs *conf_msgs);
 static void init_error_struct(ModuleError *error);
 static void init_variable_struct(Variables *var);
 //--------------FUNCTIONS TO ADJUST VARIABLES---------------//
+static void adjustParameters(ERotary_direction dir, Variables *var);
+//Adjustparameters will replace these functions
 static void slider_torque_update(ERotary_direction dir, Variables *var);
 static void slider_P_term_update(ERotary_direction dir, Variables *var);
 static void slider_I_term_update(ERotary_direction dir, Variables *var);
@@ -100,6 +104,8 @@ static void DrawSteerCalibScreen();
 static void DrawDriveEnableWarning(bool torque_pedal, bool brake_pedal, bool bms_discharge);
 static void DrawLaunchControlProcedure();
 static void DrawDataloggerInterface();
+
+static void DrawFloat(uint16_t x, uint16_t y, uint8_t font_size, float f);
 
 //***********************************************************************************
 //------------------------------------DATALOGGER FUNCTIONS-------------------------//
@@ -190,7 +196,9 @@ const MenuEntry menu[] = {
 	
 	{menu_700, 3,	25,	26,	11,	25, 25,	0,  DL_OPTIONS,			NO_SETTING,				0,startLoggingCommand},			//25 Create file
 	{menu_701, 3,	25,	27,	11,	26, 26,	1,  DL_OPTIONS,			NO_SETTING,				0,closeFileCommand},			//26 Start logging
-	{menu_702, 3,	26,	27, 11,	27, 27,	2,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//27 Close file
+	{menu_702, 3,	26,	27, 11,	27, 27,	2,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand},		//27 Close file
+		
+	{"LOCKED", 1,	28,	28, 28,	28, 28,	0,  LOCKED_SEL,			NO_SETTING,				0,0}		//28 Locked menu position
 	//{menu_703, 4,	27,	28,	11,	28, 28,	3,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//28 Delete all files
 	//{menu_704, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			DL_PREALLOCATE,			0,slider_preallocateAmount}	//29 Amount to preallocate
 };
@@ -199,12 +207,13 @@ const MenuEntry menu[] = {
 //-----------------------------DEFINES--------------------------------//
 //********************************************************************//
 // Define position of some menu elements to simplify programming
-#define MAIN_MENU_POS 5
-#define ECU_SETTINGS_MENU_POS 21
-#define ECU_SETTINGS_VARIABLES_POS 21
-#define DRIVE_ENABLE_WARNING_SEL 15
-#define ERROR_HANDLER_POS 17
-#define LC_HANDLER_POS 16
+#define MAIN_MENU_POS				5
+#define ECU_SETTINGS_MENU_POS		21
+#define ECU_SETTINGS_VARIABLES_POS	21
+#define DRIVE_ENABLE_WARNING_SEL	15
+#define ERROR_HANDLER_POS			17
+#define LC_HANDLER_POS				16
+#define LOCKED_SEL_POS				28
 
 #define NUM_MENUS_UPDATE 1 // Number of menus to specifiy a certain update frequency for
 #define RTDS_DURATION_MS 3000
@@ -212,10 +221,10 @@ const MenuEntry menu[] = {
 //***********************************************************************************
 //-------------------------SEMAPHORE AND TIMERS------------------------------------//
 //***********************************************************************************
-SemaphoreHandle_t xButtonStruct = NULL;
-SemaphoreHandle_t spi_semaphore = NULL;
-SemaphoreHandle_t can_mutex_0	= NULL;
-SemaphoreHandle_t can_mutex_1	= NULL;
+SemaphoreHandle_t		xButtonStruct	= NULL;
+SemaphoreHandle_t		spi_semaphore	= NULL;
+SemaphoreHandle_t		can_mutex_0		= NULL;
+SemaphoreHandle_t		can_mutex_1		= NULL;
 static TimerHandle_t	TSLedTimer;
 static TimerHandle_t	RTDSTimer;
 static TimerHandle_t	LC_timer;
@@ -227,7 +236,7 @@ static bool				steer_calib_timed_out			= false;
 static bool				variable_confirmation_timed_out = false;
 static uint8_t			lc_timer_count					= 0; // Countdown timer for launch control
 //***********************************************************************************
-//------------------------------------STATE VARIABLES------------------------------//
+//---------------------------FILE GLOBAL STATE VARIABLES------------------------------//
 //***********************************************************************************
 static ECarState					car_state			= TRACTIVE_SYSTEM_OFF;
 static ESteerCalibState				steer_calib_state	= STEER_C_OFF;
@@ -236,10 +245,10 @@ static ETorquePedalCalibrationState trq_calib_state		= TRQ_CALIBRATION_OFF;
 //------------------------------------GLOBAL STRUCTS-------------------------------//
 //***********************************************************************************
 typedef struct menuUpdateFrequency { // Private global for this source
-	bool update_mainScreen;
+	bool update_menu;
 } menuUpdateStatus;
 menuUpdateStatus menuUpdate = {
-	.update_mainScreen = false
+	.update_menu = false
 };
 Buttons btn = {
 	.btn_type				= NONE_BTN,
@@ -266,13 +275,32 @@ DeviceState device_state = {
 	.STEER_POS	= DEAD,
 	.IMD		= DEAD
 };
+typedef enum {STEP_POINT_ONE, STEP_ONE, STEP_TEN}EStepSize ;
+static struct StepSizeForVariables {
+	EStepSize p_term;
+	EStepSize i_term;
+	EStepSize d_term;
+	EStepSize torque;
+	};
+static struct StepSizeForVariables StepSizeVar = {
+	.p_term = STEP_ONE,
+	.i_term = STEP_ONE,
+	.d_term = STEP_ONE,
+	.torque = STEP_ONE
+	};
+
 //***********************************************************************************
 //----------------------------------THRESHOLDS AND CRITICAL VALUES-----------------//
 //***********************************************************************************
 #define TORQUE_PEDAL_THRESHOLD	25 
 #define BRAKE_PEDAL_THRESHOLD	4500
 #define BATTERY_TEMP_CRITICAL_HIGH 90
+
+//***********************************************************************************
+//--------------------------------FILE GLOBALS-------------------------------------//
+//***********************************************************************************
 static bool RTDS_finished_playing = false;
+static uint8_t prev_selected = 0;
 //***********************************************************************************
 //------------------------------------THE MAIN DASH FUNCTIONS-----------------------//
 //***********************************************************************************
@@ -282,18 +310,18 @@ void dashTask() {
 	RTDSTimer				= xTimerCreate("RTDSTimer",RTDS_DURATION_MS/portTICK_RATE_MS,pdFALSE,0,vRTDSCallback);
 	LC_timer				= xTimerCreate("lcTimer",1000/portTICK_RATE_MS,pdTRUE,(void *) 1,vLcTimerCallback);
 	calibrationTimer		= xTimerCreate("CalibTimer",3000/portTICK_RATE_MS,pdFALSE,(void *) 1,vCalibrationTimerCallback);
-	variableConfTimer		= xTimerCreate("varTimer",3000/portTICK_RATE_MS,pdFALSE,0,vVarConfTimerCallback);
+	variableConfTimer		= xTimerCreate("varTimer",1000/portTICK_RATE_MS,pdFALSE,0,vVarConfTimerCallback);
 	TSLedTimer				= xTimerCreate("TSLed", 300/portTICK_RATE_MS,pdTRUE,0,vTSLedTimerCallback);
 	createAndStartMenuUpdateTimers();
 	
 	
 	//Init states
-	SensorValues sensor_values;
-	SensorRealValue sensor_real;
-	StatusMsg status;
-	ConfirmationMsgs conf_msgs;
-	ModuleError error;
-	Variables var;
+	SensorValues		sensor_values;
+	SensorRealValue		sensor_real;
+	StatusMsg			status;
+	ConfirmationMsgs	conf_msgs;
+	ModuleError			error;
+	Variables			var;
 
 	init_sensorRealValue_struct(&sensor_real);
 	init_sensor_value_struct(&sensor_values);
@@ -325,14 +353,17 @@ void dashTask() {
 	}*/
 	
 	while(1) {
+		// The delay for this task is given by the wait time specified in the queuereceive function
+		// in the getdashmessages function. This is done to ensure that as long as there are 
+		// messages in the queue the menu task will service them. The update frequency of the visuals 
+		// is controlled by software timers to ensure that no processing power is wasted on spi comms.
 		WDT->WDT_CR = WATCHDOG_RESET_COMMAND; // Restart watchdog timer
-		//can_sendMessage(CAN0,rdata);
 		//Get relevant CAN messages from the specified freeRTOS queue
 		getDashMessages(&var,&conf_msgs,&error,&sensor_values, &status,&sensor_real);
 		xSemaphoreTake(xButtonStruct, portMAX_DELAY);
 		dashboardControlFunction(&btn,&error,&sensor_values,&status,&conf_msgs, &device_state,&var,&sensor_real);
 		xSemaphoreGive(xButtonStruct);
-		vTaskDelay(35/portTICK_RATE_MS);
+		//vTaskDelay(35/portTICK_RATE_MS);
 		//vTaskDelayUntil(&xLastWakeTime,150/portTICK_RATE_MS);
 	}
 }
@@ -355,31 +386,58 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 		HandleButtonActions(btn,sensor_real_value, device_state, var,error,conf_msgs);
 	}
 	
-	/*UPDATE SCREENS ON THE DISPLAY AND CALL MENU LOCATION DEPENDENT FUNCTIONS*/
-	
-	/*Implement that some menus will only be updated if something has changed.
-	main screen: Only update if battery level has changed or car_state has changed or module alive has changed
-	
-	OR:
-	Set an invdidual update frequency on all menus.. 
-	fex. Mainscreen.. 300 ms ? 
-	
-	*/
+	//UPDATE SCREENS ON THE DISPLAY AND CALL MENU LOCATION DEPENDENT FUNCTIONS
 	switch (menu[selected].current_menu) {
 		case ECU_OPTIONS:
-		DrawECUAdjustmentScreen(var);
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawECUAdjustmentScreen(var);
+		}
+		
 		break;
 		
 		case SYSTEM_MONITOR:
-		DrawSystemMonitorScreen(error, sensor_real_value);
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawSystemMonitorScreen(error, sensor_real_value);
+		}
+		
 		break;
 		
 		case TEMP_VOLT:
-		DrawTempAndVoltScreen(sensor_real_value);
-		break;
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawTempAndVoltScreen(sensor_real_value);
+		}
 		
+		break;
+
 		case DEVICE_STATUS:
-		DrawDeviceStatusMenu(device_state);
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawDeviceStatusMenu(device_state);
+		}
+		
+		break;
+		case MAIN_SCREEN:
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawMainScreen(sensor_real_value,50,10, device_state);
+		}
+		break;
+		case MAIN_MENU:
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawMainMenu();
+		}
+		
+		break;
+		case DL_OPTIONS:
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawDataloggerInterface();
+		}
+		
 		break;
 		
 		case TRQ_CALIB:
@@ -388,17 +446,6 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 		case STEER_CALIB:
 		calibrateSteering(conf_msgs,false);
 		break;
-		case MAIN_SCREEN:
-		if ((menuUpdate.update_mainScreen == true) ) {
-			menuUpdate.update_mainScreen = false;
-			DrawMainScreen(sensor_real_value,50,10, device_state);
-		}
-		break;
-		
-		case MAIN_MENU:
-		DrawMainMenu();
-		break;
-		
 		case SNAKE_GAME:
 		if (snakeGameState == SNAKE_OFF) {
 			snakeGameState = SNAKE_PREPPING;
@@ -408,9 +455,6 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 			snakeControlFunction(false,UP);
 		}
 		
-		break;
-		case DL_OPTIONS:
-		DrawDataloggerInterface();
 		break;
 	}
 }
@@ -562,8 +606,6 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 	// the value sent by CAN.
 	else if (btn->btn_type == PUSH_ACK) {
 		// Check if there is an error first.. Since acknowledge button is used for both variables and errors / faults
-		
-		
 		switch (menu[selected].current_menu) {
 			
 			case DL_OPTIONS:
@@ -577,10 +619,16 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 				switch (menu[selected].current_setting) {
 					case TORQUE_SETTING:
 						//EcuParameters.data = var->
-						//can_freeRTOSSendMessage(CAN0,)
+						EcuParameters.data.u8[0] = CAN_SET_TORQUE;
+						EcuParameters.dataLength = 2;
+						if ( (var->torque <= 100) && (var->torque >= 0) ) {
+							EcuParameters.data.u8[1] = var->torque;
+							can_freeRTOSSendMessage(CAN0,EcuParameters);
+						}
 					break;
 					case ECU_P_SETTING:
-					
+						EcuPTerm.data.f[0] = var->P_term;
+						can_freeRTOSSendMessage(CAN0,EcuPTerm);
 					break;
 					
 					case ECU_D_SETTING:
@@ -588,13 +636,16 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 					break;
 					
 					case ECU_I_SETTING:
-					
+						EcuITerm.data.f[0] = var->I_term;
+						can_freeRTOSSendMessage(CAN0,EcuITerm);
 					break;
 					
 				}
-				//selected = menu[selected].push_button;
-				//SendVariableOnCan();
+				prev_selected = selected;
+				selected = LOCKED_SEL_POS;
 				variable_confirmation_timed_out = false;
+				// The menu selection is set to a locked position, the menu will return to its position after 
+				// the timer runs out or the variable is confirmed.
 				xTimerReset(variableConfTimer,20/portTICK_RATE_MS); //Start variable confirmation timer
 			break;
 			case PERSISTENT_MSG:
@@ -620,10 +671,61 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 		selected = menu[selected].push_button;
 	}
 	
-	else if (btn->btn_type == SYS_ACK) {
-		
+	else if (btn->btn_type == ROT_ACK) {
+		switch (menu[selected].current_setting) {
+			case TORQUE_SETTING:
+				switch (StepSizeVar.torque){
+					case STEP_POINT_ONE:
+					StepSizeVar.torque = STEP_ONE;
+					break;
+					case ONE:
+					StepSizeVar.torque = STEP_TEN;
+					break;
+					case STEP_TEN:
+					StepSizeVar.torque = STEP_POINT_ONE;
+					break;
+				}
+			case ECU_P_SETTING:
+				switch (StepSizeVar.p_term) {
+					case STEP_POINT_ONE:
+						StepSizeVar.p_term = STEP_ONE;
+						break;
+					case ONE:
+						StepSizeVar.p_term = STEP_TEN;
+						break;
+					case STEP_TEN:
+						StepSizeVar.p_term = STEP_POINT_ONE;
+						break;
+				}
+			break;
+			case ECU_D_SETTING:
+				switch (StepSizeVar.d_term) {
+					case STEP_POINT_ONE:
+					StepSizeVar.d_term = STEP_ONE;
+					break;
+					case ONE:
+					StepSizeVar.d_term = STEP_TEN;
+					break;
+					case STEP_TEN:
+					StepSizeVar.d_term = STEP_POINT_ONE;
+					break;
+				}
+			break;
+			case ECU_I_SETTING:
+				switch (StepSizeVar.i_term) {
+					case STEP_POINT_ONE:
+					StepSizeVar.i_term = STEP_ONE;
+					break;
+					case ONE:
+					StepSizeVar.i_term = STEP_TEN;
+					break;
+					case STEP_TEN:
+					StepSizeVar.i_term = STEP_POINT_ONE;
+					break;
+				}
+			break;
+		}
 	}
-	
 	else if (btn->btn_type == LAUNCH_CONTROL) {
 		if (car_state == DRIVE_ENABLED) {
 			//Request Launch control from ECU
@@ -646,6 +748,8 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 		}
 		
 	}
+	
+	
 	else if (btn->btn_type == START) {
 		if ( (car_state != TRACTIVE_SYSTEM_OFF) || (car_state != TRACTIVE_SYSTEM_ON) )  {
 			// Request shut down
@@ -827,7 +931,9 @@ static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,De
 	
 	switch (car_state) {
 		case TRACTIVE_SYSTEM_OFF: 
-			xTimerStop(TSLedTimer,0);
+			if (xTimerIsTimerActive(TSLedTimer) == pdTRUE) {
+				xTimerStop(TSLedTimer,0);
+			}
 			pio_setOutput(TS_LED_PIO,TS_LED_PIN,PIN_LOW);
 		break;
 		case TRACTIVE_SYSTEM_ON:
@@ -837,7 +943,6 @@ static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,De
 			xTimerReset(TSLedTimer,0);
 		}
 		break;
-		
 		case DRIVE_ENABLED:
 		case LC_PROCEDURE:
 		case LC_WAITING_FOR_ECU_TO_ARM_LC:
@@ -845,7 +950,9 @@ static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,De
 		case LC_ARMED:
 		// Constant Green led
 		// Turn off the timer 
-		xTimerStop(TSLedTimer,0);
+		if (xTimerIsTimerActive(TSLedTimer) == pdTRUE) {
+			xTimerStop(TSLedTimer,0);
+		}
 		pio_setOutput(TS_LED_PIO,TS_LED_PIN,PIN_HIGH);
 		break;
 	}
@@ -860,7 +967,7 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 	};
 	//can_sendMessage(CAN0,txmsg);
 	struct CanMessage ReceiveMsg;
-	if (xQueueReceive(xDashQueue,&ReceiveMsg,0) == pdTRUE) {
+	if (xQueueReceive(xDashQueue,&ReceiveMsg,5) == pdTRUE) {
 		//can_sendMessage(CAN0,txmsg);
 		//Received a Can message over the queue
 		
@@ -913,23 +1020,19 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 				switch (ReceiveMsg.data.u8[0]) {
 					case 0x0F:
 					//TS active
-					can_sendMessage(CAN0,SteeringCalibrationLeft);
 					status->shut_down_circuit_closed = true;
 					break;
 					case 0x02:
-					can_sendMessage(CAN0,FinishedRTDS);
 					//Play RTDS. The timer callback will turn it off after RTDS_DURATION_MS has passed.
 					// It will also send a can message telling the ECU the dash is done with RTDS.
 					xTimerStart(RTDSTimer,200/portTICK_RATE_MS);
 					pio_setOutput(BUZZER_PIO,BUZZER_PIN,PIN_HIGH);
 					break;
 					case 0x0E:
-					can_sendMessage(CAN0,SteeringCalibrationRight);
 					//Ready to drive, drive enabled
 					conf_msg->drive_enabled_confirmed = true;
 					break;
 					case 0x04:
-					can_sendMessage(CAN0,Acknowledge);
 					//Drive disabled
 					conf_msg->drive_disabled_confirmed = true;
 					break;
@@ -1008,14 +1111,14 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 static void can_freeRTOSSendMessage(Can *can,struct CanMessage message) {
 	
 	if (can == CAN0) {
-		xSemaphoreTake(can_mutex_0,portMAX_DELAY);
+		xSemaphoreTake(can_mutex_0, portMAX_DELAY);
 		
 		can_sendMessage(can,message);
 		
 		xSemaphoreGive(can_mutex_0);
 	}
 	else if (can == CAN1) {
-		xSemaphoreTake(can_mutex_1,portMAX_DELAY);
+		xSemaphoreTake(can_mutex_1, portMAX_DELAY);
 		
 		can_sendMessage(can,message);
 		
@@ -1161,7 +1264,7 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 					break;
 
 				}
-	
+				// Make swithc case with trq0 and tr1 combinged into a 2 bit variable
 				if (trq_ch0_ok && trq_ch1_ok) {
 					trq_calib_state = TRQ_CALIBRATION_MIN_CONFIRMED;
 				}
@@ -1229,6 +1332,8 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				trq_calib_timed_out = false;
 				trq_calib_state = TRQ_CALIBRATION_OFF;
 				selected = MAIN_MENU_POS;
+				btn.btn_type = NONE_BTN;
+				btn.unhandledButtonAction = false;
 			}
 			break;
 	}
@@ -1361,13 +1466,14 @@ static void vCalibrationTimerCallback(TimerHandle_t xTimer){
 }
 static void vVarConfTimerCallback(TimerHandle_t xTimer) {
 	variable_confirmation_timed_out = true;
+	selected = prev_selected;
 }
 static void vMenuUpdateCallback(TimerHandle_t pxTimer) {
 	uint8_t menu_id;
 	menu_id = (uint8_t) pvTimerGetTimerID(pxTimer);
 	switch (menu_id) {
 		case 0: // Main Screen
-		menuUpdate.update_mainScreen = true;
+		menuUpdate.update_menu = true;
 		xTimerReset(timer_menuUpdate[0],0);
 		break;
 	}
@@ -1489,6 +1595,35 @@ static bool checkDeviceStatus(DeviceState *devices) {
 }
 
 static void setVariableBasedOnConfirmation(Variables *var) {
+	
+	switch (menu[selected].current_setting) {
+		case TORQUE_SETTING:
+			if (variable_confirmation_timed_out == true) {
+				var->torque = var->prev_confirmed_torque;
+			}
+			else {
+				var->prev_confirmed_torque = var->torque;
+			}
+		break;
+		case ECU_P_SETTING:
+			if (variable_confirmation_timed_out == true) {
+				var->P_term = var->prev_confirmed_P_term;
+			}
+			else {
+				var->prev_confirmed_P_term = var->P_term;
+			}
+		break;
+		
+		case ECU_I_SETTING:
+			if (variable_confirmation_timed_out == true) {
+				var->I_term = var->prev_confirmed_I_term;
+			}
+			else {
+				var->prev_confirmed_I_term = var->I_term;
+			}
+		break;
+		
+	}
 	if (menu[selected].current_setting == TORQUE_SETTING) {
 		if (variable_confirmation_timed_out == true) {
 			var->torque = var->prev_confirmed_torque;
@@ -1545,10 +1680,12 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 
 
 static void createAndStartMenuUpdateTimers() {
-	timer_menuUpdate[0] = xTimerCreate("MainScreen",500/portTICK_RATE_MS, pdTRUE, (void *) 0 ,vMenuUpdateCallback);
+	timer_menuUpdate[0] = xTimerCreate("MainScreen",100/portTICK_RATE_MS, pdTRUE, (void *) 0 ,vMenuUpdateCallback);
 	if (timer_menuUpdate[0] == NULL) {
+		
 	}
 	else if (xTimerStart(timer_menuUpdate[0],0) != pdPASS) {
+		
 	}
 }
 
@@ -2030,6 +2167,10 @@ static void DrawAdjustmentMenu() {
 	cmd_exec();
 	// Delay in 2014. Why?
 }
+
+
+
+
 static void DrawECUAdjustmentScreen(Variables *var) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
@@ -2090,7 +2231,7 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 		
 		if (menu[variable_pos].current_setting == TORQUE_SETTING) {
 			if (selected == variable_pos) {
-				cmd_fgcolor(0xff33ff); // Pink knob
+				cmd_fgcolor(0x000000); // Try black knob
 				cmd_bgcolor(color_right); // Yellow right of knob
 				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->torque,100);
@@ -2700,11 +2841,60 @@ static void DrawDataloggerInterface() {
 	cmd_exec();
 }
 
-
+static void DrawFloat(uint16_t x, uint16_t y, uint8_t font_size, float f) {
+	int integer_part = (int) f;
+	int fractional_part = (int) ( (f- integer_part)*10);
+	cmd_number(x,y,font_size,OPT_CENTER,integer_part);
+	cmd_text(x+7,y,font_size,OPT_CENTER,".");
+	cmd_number(x+13,y,font_size,OPT_CENTER,fractional_part);
+}
 
 //***********************************************************************************
 //--------------------------SLIDER VARIABLE UPDATE FUNCTIONS-----------------------//
 //***********************************************************************************
+
+
+// static void adjustParameter(EAdjustmentParameter parameter_type, ERotary_direction dir, Variables *var) {
+// 	switch (parameter_type) {
+// 		case TORQUE_SETTING:
+// 			if (dir == CW && var->torque <=(var->max_torque - step)) {
+// 				var->torque += step;
+// 			}
+// 			else if (dir == CCW && var->torque >=(var->min_torque+step)) {
+// 				var->torque -= step;
+// 			}
+// 		
+// 	}
+// }
+
+static void adjustParameters(ERotary_direction dir, Variables *var) {
+	switch (menu[selected].current_setting) {
+		case TORQUE_SETTING:
+			if ( (dir == CW) && ( (var->torque + StepSizeVar.torque) <= var->max_torque )  ) {
+				var->torque += StepSizeVar.torque;
+			}
+			else if ( (dir == CCW) && ( (var->torque - StepSizeVar.torque)  >= var->min_torque) ) {
+				var->torque -= StepSizeVar.torque;
+			}
+		break;
+		case ECU_P_SETTING:
+			if ( (dir == CW) && ( (var->P_term + StepSizeVar.p_term) <= var->max_P_term )  ) {
+				var->P_term += StepSizeVar.p_term;
+			}
+			else if ( (dir == CCW) && ( (var->P_term - StepSizeVar.p_term)  >= var->min_P_term) ) {
+				var->P_term -= StepSizeVar.p_term;
+			}
+		break;
+		case ECU_I_SETTING:
+			if ( (dir == CW) && ( (var->I_term + StepSizeVar.i_term) <= var->max_I_term )  ) {
+				var->I_term += StepSizeVar.i_term;
+			}
+			else if ( (dir == CCW) && ( (var->I_term - StepSizeVar.i_term)  >= var->min_I_term) ) {
+				var->I_term -= StepSizeVar.i_term;
+			}
+		break;
+	}
+}
 
 static void slider_torque_update(ERotary_direction dir, Variables *var) {
 	uint8_t step = 25;

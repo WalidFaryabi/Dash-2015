@@ -24,8 +24,8 @@ typedef struct previousButtonPressStates {
 	uint8_t prev_navigation_up;
 	
 	uint8_t prev_launch_control;
-	uint8_t prev_dash_ack;
-	uint8_t prev_sys_ack;
+	uint8_t prev_push_ack;
+	uint8_t prev_rot_ack;
 	uint8_t prev_start;
 	} prevBtnState;
 
@@ -35,8 +35,8 @@ prevBtnState prevBtn = {
 	.prev_navigation_down	= 1,
 	.prev_navigation_up		= 1,
 	.prev_launch_control	= 1,
-	.prev_dash_ack			= 1,
-	.prev_sys_ack			= 1,
+	.prev_push_ack			= 1,
+	.prev_rot_ack			= 1,
 	.prev_start				= 1
 };
 
@@ -107,10 +107,15 @@ void Task_ButtonInput() {
 				btn.btn_type = NAVIGATION;
 				btn.navigation = UP;
 			}
-			else if ( (pio_readPin(SYS_ACK_PIO,SYS_ACK_PIN) == 0) && (prevBtn.prev_sys_ack == 1) ) {
+			else if ( (pio_readPin(NAV_ACK_PIO,NAV_ACK_PIN) == 0) && (prevBtn.prev_push_ack == 1) ) {
 				btn.unhandledButtonAction = true;
 				btn.btn_type = PUSH_ACK;
 			}
+			else if ( (pio_readPin(ROT_PUSH3_PIO,ROT_PUSH3_PIN) == 0) && (prevBtn.prev_rot_ack == 1) ) {
+				btn.unhandledButtonAction = true;
+				btn.btn_type = ROT_ACK;
+			}
+			
 			//*************************************************************************************************//
 			//*********************************************ROTARY ENCODER**************************************//
 			//*************************************************************************************************//	
@@ -135,7 +140,7 @@ void Task_ButtonInput() {
 				xTimerReset(lcButtontimer,0);
 				
 			}
-			else if ( (lc_button_pushed_in == true ) && (lc_button_time_counter == START_BUTTON_DELAY)) {
+			else if ( (lc_button_pushed_in == true ) && (lc_button_time_counter >= START_BUTTON_DELAY)) {
 				btn.unhandledButtonAction = true;
 				btn.btn_type = LAUNCH_CONTROL;
 				
@@ -153,7 +158,7 @@ void Task_ButtonInput() {
 				// This button should only be true if it has been pushed down for 0.5 seconds
 				// After first activation, continually check that button == 0 and prev == 0 for 0.5 seconds
 			}
-			else if ( (start_button_pushed_in == true) && (start_button_time_counter == START_BUTTON_DELAY) ) {
+			else if ( (start_button_pushed_in == true) && (start_button_time_counter >= START_BUTTON_DELAY) ) {
 				btn.unhandledButtonAction = true;
 				btn.btn_type = START;
 				
@@ -167,8 +172,8 @@ void Task_ButtonInput() {
 		prevBtn.prev_navigation_down = pio_readPin(NAVIGATION_D_PIO,NAVIGATION_D_PIN);
 		prevBtn.prev_navigation_up = pio_readPin(NAVIGATION_U_PIO,NAVIGATION_U_PIN);
 		
-		prevBtn.prev_dash_ack = pio_readPin(ROT_PUSH3_PIO,ROT_PUSH3_PIN); 
-		prevBtn.prev_sys_ack = pio_readPin(SYS_ACK_PIO,SYS_ACK_PIN);
+		prevBtn.prev_rot_ack = pio_readPin(ROT_PUSH3_PIO,ROT_PUSH3_PIN); 
+		prevBtn.prev_push_ack = pio_readPin(NAV_ACK_PIO,NAV_ACK_PIN);
 		prevBtn.prev_launch_control = pio_readPin(LC_PIO,LC_PIN);
 		prevBtn.prev_start = pio_readPin(START_PIO, START_PIN);
 		
@@ -188,10 +193,10 @@ void Task_ButtonInput() {
 
 		//Check if the the system acknowledge button has been pressed
 		// 		if (btn.unhandledButtonAction == false) {
-		// 			if ( (pio_readPin(SYS_ACK_PIO,SYS_ACK_PIN) == 0) && (prev_sys_ack == 1) ) {
+		// 			if ( (pio_readPin(NAV_ACK_PIO,NAV_ACK_PIN) == 0) && (prev_sys_ack == 1) ) {
 		// 				btn.unhandledButtonAction = true;
 		// 				btn.system_acknowledge = true;
-		// 				btn.btn_type = SYS_ACK;
+		// 				btn.btn_type = ROT_ACK;
 		// 			}
 		// 		}
 

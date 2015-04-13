@@ -1,11 +1,3 @@
-/*
- * buttonTask.h
- *
- * Created: 02.02.2015 16:27:08
- *  Author: Will
- */ 
-
-
 #ifndef BUTTONTASK_H_
 #define BUTTONTASK_H_
 

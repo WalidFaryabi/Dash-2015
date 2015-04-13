@@ -32,8 +32,8 @@
 #define LC_PIO PIOC
 #define LC_PIN 6
 
-#define SYS_ACK_PIO PIOD // Uses the slot meant for KERS switch
-#define SYS_ACK_PIN 24
+#define NAV_ACK_PIO PIOD // Uses the slot meant for KERS switch
+#define NAV_ACK_PIN 24
 
 #define AMS_LED_PIO PIOA	
 #define AMS_LED_PIN 22

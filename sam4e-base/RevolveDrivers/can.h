@@ -25,6 +25,7 @@ typedef union can_data_t{
 	int16_t  i16[4];
 	uint8_t  u8[8];
 	int8_t   i8[8];
+	float	 f[2];
 }CanData ;
 
 struct CanMessage{

@@ -60,11 +60,31 @@ struct CanMessage RequestLCArmed = {
 	.data.u8[0] = 2
 };
 
+#define CAN_SET_TORQUE		0x01
+#define CAN_SET_KERS_AMOUNT 0x02
+#define CAN_SET_KERS_TOGGLE	0x03
 struct CanMessage EcuParameters = {
-	.messageID = ID_ECU_PARAMETERS,
-	.dataLength = 4,
-	.data.u32[0] = 0
-	};
+	// Byte 1 describes what parameter is being set in the ECU , 0x01 for Torque, 0x02 for Kers amount, 0x03 for KERS ON/OFF, 0x04 ..
+	// Byte 2 is for Torque percentage
+	// Byte 3 is for Kers Amount
+	// Byte 4 is for Kers ON/OFF
+	// Byte 5 ...
+	.messageID		= ID_ECU_PARAMETERS,
+	.dataLength		= 2,
+	.data.u32[0]	= 0
+};
+
+struct CanMessage EcuPTerm = {
+	.messageID = ID_ECU_P_TERM,
+	.dataLength = 4
+};
+
+struct CanMessage EcuITerm = {
+	.messageID = ID_ECU_I_TERM,
+	.dataLength = 4
+};
+
+
 
 	
 

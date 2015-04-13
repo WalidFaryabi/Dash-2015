@@ -38,8 +38,9 @@
 /*
 Changed:
 PMC and Pio modified
-Feertosconfig. Changed max timer queue, increased freertos heap (find a good reason for this)
-INCLUDE_xSemaphoreGetMutexHolder 1 This is not default in freertos ocnfig h
+Feertosconfig. Changed max timer queue
+INCLUDE_xSemaphoreGetMutexHolder 1 This is not default in freertos config h
+Added float to can union
 */
 
 #define WATCHDOG_DOWN_COUNTER 769 // 3 seconds

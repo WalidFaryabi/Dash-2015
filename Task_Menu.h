@@ -12,11 +12,11 @@
 
 typedef enum {MAIN_SCREEN,SYSTEM_MONITOR,TEMP_VOLT,MAIN_MENU,VARIABLE,DEVICE_STATUS,
 			  SPEED,TRQ_CALIB,PERSISTENT_MSG,ECU_OPTIONS,LC_HANDLER,ERROR_HANDLER,SNAKE_GAME,
-			  STEER_CALIB,DL_OPTIONS} EMenuName;
+			  STEER_CALIB,DL_OPTIONS,LOCKED_SEL} EMenuName;
 typedef enum {NO_SETTING,TORQUE_SETTING,KERS_SETTING, ECU_P_SETTING, ECU_D_SETTING, 
 			  ECU_I_SETTING, ECU_LC_RT_SETTING, ECU_LC_INIT_TORQ_SETTING,DL_PREALLOCATE} EAdjustmentParameter;
 			  
-typedef enum {NAVIGATION,PUSH_ACK,ROTARY,SYS_ACK,START,LAUNCH_CONTROL,NONE_BTN} EButtonType;
+typedef enum {NAVIGATION,PUSH_ACK,ROTARY,ROT_ACK,START,LAUNCH_CONTROL,NONE_BTN} EButtonType;
 typedef enum {UP,DOWN,LEFT,RIGHT,NAV_DEFAULT} ENavigationDirection;
 typedef enum {CCW,CW} ERotary_direction;
 typedef enum {ENABLE_SWITCH,DISABLE_SWITCH} ESwitchState;	
@@ -118,9 +118,9 @@ typedef struct VariableValues { // Values of adjustable variables
 	uint32_t T_term;
 	uint32_t prev_confirmed_T_term;
 	uint32_t max_T_term;
-	/* If acknowledge is pressed while adjusting a variable, a timer is started, if a confirmation msg is received 
-	before it times out the variable of the current variable adjustment menu is confirmed. This is handled in
-	getDashMessages function. If the user presses left the previous confirmed variable will be displayed again*/
+	/* If acknowledge is pressed while adjusting a parameter, a timer is started, if a confirmation msg is received 
+	before it times out the parameter of the current parameter adjustment menu is confirmed. This is handled in
+	getDashMessages function. If the user presses left the previous confirmed parameter will be displayed again*/
 	
 	} Variables;
 	

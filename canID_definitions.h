@@ -14,6 +14,8 @@
 #define ID_ECU_LC					0x262
 #define ID_FINISHED_RTDS			0x263
 #define ID_ECU_PARAMETERS			0x264
+#define ID_ECU_P_TERM				0x265
+#define ID_ECU_I_TERM				0x266
 
 
 #define ID_TORQUE_PEDAL_CALIBRATION	0x460
