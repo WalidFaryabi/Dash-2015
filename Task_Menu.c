@@ -51,6 +51,8 @@ static bool bmsNotCharged(SensorRealValue *sensor_real);
 static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed);
 static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed);
 static bool checkDeviceStatus(DeviceState *devices);
+
+static void presetProcedureHandling(bool ackPressed,ConfirmationMsgs *conf_msgs);
 //---------------INIT THE STRUCTURES USED---------------//
 static void init_sensorRealValue_struct(SensorRealValue *sensorReal);
 static void init_sensor_value_struct(SensorValues *sensor_values);
@@ -106,6 +108,7 @@ static void DrawLaunchControlProcedure();
 static void DrawDataloggerInterface();
 
 static void DrawFloat(uint16_t x, uint16_t y, uint8_t font_size, float f);
+static void DrawPresetProcedure();
 
 //***********************************************************************************
 //------------------------------------DATALOGGER FUNCTIONS-------------------------//
@@ -115,6 +118,8 @@ static void startLoggingCommand();
 static void closeFileCommand();
 static void deleteAllFilesCommand();
 static void slider_preallocateAmount();
+
+
 
 //***********************************************************************************
 //----------------------------------------MENU-------------------------------------//
@@ -131,8 +136,8 @@ const char menu_203[] = "TORQUE CALIBRATION";					// 7
 const char menu_204[] = "ECU SETTINGS";							// 8
 const char menu_205[] = "IMU SETTINGS";							// 9
 const char menu_206[] = "SNAKE";								// 10
-const char menu_207[] = "DATALOGGER";								// 11
-const char menu_208[] = "EMPTY";								// 12
+const char menu_207[] = "DATALOGGER";							// 11
+const char menu_208[] = "PRESETS";								// 12
 
 const char menu_300[] = "DEVICE STATUS";						// 13
 const char menu_400[] = "KERS settings";						// 14
@@ -173,11 +178,8 @@ const MenuEntry menu[] = {
 	{menu_205, 9,	8,	10,	5,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0,0},						//9  IMU options
 	{menu_206, 9,	9,	11,	6,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0,0},						//10 Snake
 	{menu_207, 9,	10,	12,	7,	11, 25,	7,  MAIN_MENU,			NO_SETTING,					0,0},						//11 Datalogger
-	{menu_208, 9,	11,	12,	8,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0,0},						//12 placeholder options
-		
-		
-
-		
+	{menu_208, 9,	11,	12,	8,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0,0},						//12 Preset parameters
+	
 	{menu_400, 1,	10,	10,	6,	10, 10,	1,  VARIABLE,			KERS_SETTING,				0,0},						//13  KERS adjustment screen
 		
 	{menu_300, 1,	14,	14,	5,	14, 14,	1,  DEVICE_STATUS,		NO_SETTING,					0,0},						//14  Device status Screen
@@ -198,10 +200,25 @@ const MenuEntry menu[] = {
 	{menu_701, 3,	25,	27,	11,	26, 26,	1,  DL_OPTIONS,			NO_SETTING,				0,closeFileCommand},			//26 Start logging
 	{menu_702, 3,	26,	27, 11,	27, 27,	2,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand},		//27 Close file
 		
-	{"LOCKED", 1,	28,	28, 28,	28, 28,	0,  LOCKED_SEL,			NO_SETTING,				0,0}		//28 Locked menu position
+	{"LOCKED", 1,	28,	28, 28,	28, 28,	0,  LOCKED_SEL,			NO_SETTING,				0,0},							//28 Locked menu position
+		
+	{"VERYWET10", 8,29,	30, 12,	33, 37,	0,  PRESET_SEL,			PRESET_1_SETTING,		0,0},							//29 Preset option
+	{"VERYWET20", 8,29,	31, 12,	34, 37,	1,  PRESET_SEL,			PRESET_2_SETTING,		0,0},							//30 Preset option
+	{"WET10",	  8,30,	32, 12,	35, 37,	2,  PRESET_SEL,			PRESET_3_SETTING,		0,0},							//31 Preset option
+	{"VWET20",	  8,31,	33, 12,	36, 37,	3,  PRESET_SEL,			PRESET_4_SETTING,		0,0},							//32 Preset option
+	{"DRY10",     8,32,	34, 29,	33, 37,	4,  PRESET_SEL,			PRESET_5_SETTING,		0,0},							//33 Preset option
+	{"DRY20",     8,33,	35, 30,	34, 37,	5,  PRESET_SEL,			PRESET_6_SETTING,		0,0},							//34 Preset option
+	{"DRY25",     8,34,	36, 31,	35, 37,	6,	PRESET_SEL,			PRESET_7_SETTING,		0,0},							//35 Preset option
+	{"GEN",       8,35,	36, 32,	36, 37,	7,	PRESET_SEL,			PRESET_8_SETTING,		0,0},							//36 Preset option
+	
+	{"PRELOCK",   1,37,	37, 37,	37, 37,	0,	PRESET_PROCEDURE,	NO_SETTING,				0,0}							//37 Preset option
+		
+	
 	//{menu_703, 4,	27,	28,	11,	28, 28,	3,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//28 Delete all files
 	//{menu_704, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			DL_PREALLOCATE,			0,slider_preallocateAmount}	//29 Amount to preallocate
 };
+
+
 
 //********************************************************************//
 //-----------------------------DEFINES--------------------------------//
@@ -214,12 +231,13 @@ const MenuEntry menu[] = {
 #define ERROR_HANDLER_POS			17
 #define LC_HANDLER_POS				16
 #define LOCKED_SEL_POS				28
+#define PRESET_PROCEDURE_POS		37
 
 #define NUM_MENUS_UPDATE 1 // Number of menus to specifiy a certain update frequency for
 #define RTDS_DURATION_MS 3000
 #define WATCHDOG_RESET_COMMAND  ( (0xA5 << 24) | (1<<0)) // Command to write to WDT CR register to reset the counter
 //***********************************************************************************
-//-------------------------SEMAPHORE AND TIMERS------------------------------------//
+//-------------------------SEMAPHORE, TIMERS AND QUEUES----------------------------//
 //***********************************************************************************
 SemaphoreHandle_t		xButtonStruct	= NULL;
 SemaphoreHandle_t		spi_semaphore	= NULL;
@@ -229,11 +247,11 @@ static TimerHandle_t	TSLedTimer;
 static TimerHandle_t	RTDSTimer;
 static TimerHandle_t	LC_timer;
 static TimerHandle_t	calibrationTimer;
-static TimerHandle_t	variableConfTimer;
+static TimerHandle_t	parameterConfTimer;
 static TimerHandle_t	timer_menuUpdate[NUM_MENUS_UPDATE];
 static bool				trq_calib_timed_out				= false;
 static bool				steer_calib_timed_out			= false;
-static bool				variable_confirmation_timed_out = false;
+static bool				parameter_confirmation_timed_out = false;
 static uint8_t			lc_timer_count					= 0; // Countdown timer for launch control
 //***********************************************************************************
 //---------------------------FILE GLOBAL STATE VARIABLES------------------------------//
@@ -241,6 +259,8 @@ static uint8_t			lc_timer_count					= 0; // Countdown timer for launch control
 static ECarState					car_state			= TRACTIVE_SYSTEM_OFF;
 static ESteerCalibState				steer_calib_state	= STEER_C_OFF;
 static ETorquePedalCalibrationState trq_calib_state		= TRQ_CALIBRATION_OFF;
+static EPresetStates				presetProcedureState= PRESET_PROCEDURE_OFF;
+
 //***********************************************************************************
 //------------------------------------GLOBAL STRUCTS-------------------------------//
 //***********************************************************************************
@@ -288,6 +308,17 @@ static struct StepSizeForVariables StepSizeVar = {
 	.d_term = STEP_ONE,
 	.torque = STEP_ONE
 	};
+	
+static struct presetParameterStruct {
+	float p_term;
+	float i_term;
+	float a;
+	float b;
+};
+static struct presetParameterStruct presetParameters;
+
+// stuff
+EAdjustmentParameter presetSetting;
 
 //***********************************************************************************
 //----------------------------------THRESHOLDS AND CRITICAL VALUES-----------------//
@@ -310,10 +341,11 @@ void dashTask() {
 	RTDSTimer				= xTimerCreate("RTDSTimer",RTDS_DURATION_MS/portTICK_RATE_MS,pdFALSE,0,vRTDSCallback);
 	LC_timer				= xTimerCreate("lcTimer",1000/portTICK_RATE_MS,pdTRUE,(void *) 1,vLcTimerCallback);
 	calibrationTimer		= xTimerCreate("CalibTimer",3000/portTICK_RATE_MS,pdFALSE,(void *) 1,vCalibrationTimerCallback);
-	variableConfTimer		= xTimerCreate("varTimer",1000/portTICK_RATE_MS,pdFALSE,0,vVarConfTimerCallback);
+	parameterConfTimer		= xTimerCreate("varTimer",1000/portTICK_RATE_MS,pdFALSE,0,vVarConfTimerCallback);
 	TSLedTimer				= xTimerCreate("TSLed", 300/portTICK_RATE_MS,pdTRUE,0,vTSLedTimerCallback);
 	createAndStartMenuUpdateTimers();
 	
+	xPresetQueue			= xQueueCreate(1,sizeof(presetParameters));
 	
 	//Init states
 	SensorValues		sensor_values;
@@ -454,7 +486,89 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 		else {
 			snakeControlFunction(false,UP);
 		}
+		break;
+		case PRESET_PROCEDURE:
+			if (presetProcedureState == PRESET_PROCEDURE_OFF) {
+				presetProcedureState = PRESET_PROCEDURE_INIT;
+				presetProcedureHandling(false,conf_msgs);
+			}
+			else {
+				presetProcedureHandling(false,conf_msgs);
+			}
+		break;
+	}
+}
+
+
+static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs) {
+	static enum EDataloggerCommands close_file = CLOSE_FILE;
+	static enum EDataloggerCommands get_files = GET_PARAMETERS_FROM_FILE;
+	switch (presetProcedureState) {
+		case PRESET_PROCEDURE_INIT:
+			// Stop and close file for datalogger
+			// Send command to extract data from file 
+			xQueueSendToBack(xDataloggerCommandQueue,&close_file,10);
+			xQueueSendToBack(xDataloggerCommandQueue,&get_files,10);
+			presetProcedureState = PRESET_PROCEDURE_WAITING;
+		break;
+		case PRESET_PROCEDURE_WAITING:
+			if (xQueueReceive(xPresetQueue,&presetParameters, 1000) == pdPASS) {
+				// Received all the preset parameters from the datalogger task
+				presetProcedureState = PRESET_PROCEDURE_SEND_P_TERM;
+				// Send the struct to ECU one by one.. wait for confirmation for each
+			}
+			else {
+				// Timed out
+				presetProcedureState = PRESET_PROCEDURE_FAILED;
+			}
+		break;
+		case PRESET_PROCEDURE_SEND_P_TERM:
+			EcuPTerm.data.f[0] = presetParameters.p_term;
+			can_freeRTOSSendMessage(CAN0, EcuPTerm);
+			xTimerReset(parameterConfTimer,0);
+			parameter_confirmation_timed_out = false;
+		break;
+		case WAIT_P_TERM:
+			if (conf_msgs->ECU_parameter_confirmed == true) {
+				conf_msgs->ECU_parameter_confirmed = false;
+				presetProcedureState = PRESET_PROCEDURE_SEND_I_TERM;
+			}
+			else if (parameter_confirmation_timed_out == true) {
+				presetProcedureState = PRESET_PROCEDURE_FAILED;
+			}
+		break;
+		case PRESET_PROCEDURE_SEND_I_TERM:
+			EcuITerm.data.f[0] = presetParameters.i_term;
+			can_freeRTOSSendMessage(CAN0, EcuITerm);
+			xTimerReset(parameterConfTimer,0);
+			parameter_confirmation_timed_out = false;
+		break;
+		case WAIT_I_TERM:
+			if (conf_msgs->ECU_parameter_confirmed == true) {
+				conf_msgs->ECU_parameter_confirmed = false;
+				presetProcedureState = PRESET_PROCEDURE_FINISHED;
+			}
+			else if (parameter_confirmation_timed_out == true) {
+				presetProcedureState = PRESET_PROCEDURE_FAILED;
+			}
+		break;
 		
+		case PRESET_PROCEDURE_FINISHED:
+			DrawPresetProcedure();
+			if (ackPressed == true) {
+				selected = MAIN_MENU_POS;
+				presetProcedureState = PRESET_PROCEDURE_OFF;
+			}
+		// Tell the user that the preset is loaded to ecu
+		// Wait for acknowledge to send user back to main menu
+		break;
+		
+		case PRESET_PROCEDURE_FAILED:
+			DrawPresetProcedure();
+			if (ackPressed == true) {
+				selected = MAIN_MENU_POS;
+				presetProcedureState = PRESET_PROCEDURE_OFF;
+			}
 		break;
 	}
 }
@@ -615,6 +729,14 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 				//can_sendMessage(CAN0,ackMsg);
 				selected = 0; // Return to main menu
 			break;
+			
+			case PRESET_SEL:
+				if (presetProcedureState != PRESET_PROCEDURE_OFF) {
+					presetSetting = menu[selected].current_setting;
+					presetProcedureHandling(true,conf_msgs);
+				}
+			break;
+				
 			case ECU_OPTIONS:
 				switch (menu[selected].current_setting) {
 					case TORQUE_SETTING:
@@ -633,8 +755,7 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 					
 					case ECU_D_SETTING:
 					
-					break;
-					
+					break;				
 					case ECU_I_SETTING:
 						EcuITerm.data.f[0] = var->I_term;
 						can_freeRTOSSendMessage(CAN0,EcuITerm);
@@ -643,10 +764,10 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 				}
 				prev_selected = selected;
 				selected = LOCKED_SEL_POS;
-				variable_confirmation_timed_out = false;
+				parameter_confirmation_timed_out = false;
 				// The menu selection is set to a locked position, the menu will return to its position after 
 				// the timer runs out or the variable is confirmed.
-				xTimerReset(variableConfTimer,20/portTICK_RATE_MS); //Start variable confirmation timer
+				xTimerReset(parameterConfTimer,20/portTICK_RATE_MS); //Start variable confirmation timer
 			break;
 			case PERSISTENT_MSG:
 				//If a persistent msg is acknowledged the user is returned to the main screen
@@ -814,7 +935,7 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 		case UP:
 			switch (menu[selected].current_menu) {
 				case ECU_OPTIONS:
-				variable_confirmation_timed_out = true;
+				parameter_confirmation_timed_out = true;
 				setVariableBasedOnConfirmation(var);
 				break;
 				case SNAKE_GAME:
@@ -829,7 +950,7 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 		case DOWN:
 			switch (menu[selected].current_menu) {
 				case ECU_OPTIONS:
-				variable_confirmation_timed_out = true;
+				parameter_confirmation_timed_out = true;
 				setVariableBasedOnConfirmation(var);
 				break;
 				case SNAKE_GAME:
@@ -975,7 +1096,7 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 			case 11:
 				//Temporary testing: Variable confirmation ID
 				setVariableBasedOnConfirmation(var);
-				variable_confirmation_timed_out = false; // Reset the global status flag
+				parameter_confirmation_timed_out = false; // Reset the global status flag
 			break;
 			case ID_TRQ_CONF_CH0:
 				switch (ReceiveMsg.data.u8[0]) {
@@ -1051,6 +1172,8 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 					break;
 				}
 			break;
+		
+			
 			case ID_BMS_MAX_MIN_VALUES:
 				sensor_real->max_cell_voltage_lsb = ReceiveMsg.data.u8[0];
 				sensor_real->max_cell_voltage_msb = ReceiveMsg.data.u8[1];
@@ -1465,7 +1588,7 @@ static void vCalibrationTimerCallback(TimerHandle_t xTimer){
 	steer_calib_timed_out = true;
 }
 static void vVarConfTimerCallback(TimerHandle_t xTimer) {
-	variable_confirmation_timed_out = true;
+	parameter_confirmation_timed_out = true;
 	selected = prev_selected;
 }
 static void vMenuUpdateCallback(TimerHandle_t pxTimer) {
@@ -1533,6 +1656,7 @@ static void init_conf_msgs_struct(ConfirmationMsgs *conf_msgs) {
 	conf_msgs->lc_ready = false;
 	conf_msgs->conf_trq_ch0 = TRQ_DEFAULT;
 	conf_msgs->conf_trq_ch1 = TRQ_DEFAULT;
+	conf_msgs->ECU_parameter_confirmed = false;
 	}
 static void init_error_struct(ModuleError *error) {
 	
@@ -1598,7 +1722,7 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 	
 	switch (menu[selected].current_setting) {
 		case TORQUE_SETTING:
-			if (variable_confirmation_timed_out == true) {
+			if (parameter_confirmation_timed_out == true) {
 				var->torque = var->prev_confirmed_torque;
 			}
 			else {
@@ -1606,7 +1730,7 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 			}
 		break;
 		case ECU_P_SETTING:
-			if (variable_confirmation_timed_out == true) {
+			if (parameter_confirmation_timed_out == true) {
 				var->P_term = var->prev_confirmed_P_term;
 			}
 			else {
@@ -1615,7 +1739,7 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 		break;
 		
 		case ECU_I_SETTING:
-			if (variable_confirmation_timed_out == true) {
+			if (parameter_confirmation_timed_out == true) {
 				var->I_term = var->prev_confirmed_I_term;
 			}
 			else {
@@ -1625,7 +1749,7 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 		
 	}
 	if (menu[selected].current_setting == TORQUE_SETTING) {
-		if (variable_confirmation_timed_out == true) {
+		if (parameter_confirmation_timed_out == true) {
 			var->torque = var->prev_confirmed_torque;
 		}
 		else {
@@ -1633,7 +1757,7 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 		}
 	}
 	else if (menu[selected].current_setting == ECU_P_SETTING) {
-		if (variable_confirmation_timed_out == true) {
+		if (parameter_confirmation_timed_out == true) {
 			var->P_term = var->prev_confirmed_P_term;
 		}
 		else {
@@ -1642,7 +1766,7 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 		
 	}
 	else if (menu[selected].current_setting == ECU_D_SETTING) {
-		if (variable_confirmation_timed_out == true) {
+		if (parameter_confirmation_timed_out == true) {
 			var->D_term = var->prev_confirmed_D_term;
 		}
 		else {
@@ -1651,7 +1775,7 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 		
 	}
 	else if (menu[selected].current_setting == ECU_I_SETTING) {
-		if (variable_confirmation_timed_out == true) {
+		if (parameter_confirmation_timed_out == true) {
 			var->I_term = var->prev_confirmed_I_term;
 		}
 		else {
@@ -1660,7 +1784,7 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 		
 	}
 	else if (menu[selected].current_setting == ECU_LC_RT_SETTING) {
-		if (variable_confirmation_timed_out == true) {
+		if (parameter_confirmation_timed_out == true) {
 			var->R_term = var->prev_confirmed_R_term;
 		}
 		else {
@@ -1668,7 +1792,7 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 		}
 	}
 	else if (menu[selected].current_setting == ECU_LC_INIT_TORQ_SETTING) {
-		if (variable_confirmation_timed_out == true) {
+		if (parameter_confirmation_timed_out == true) {
 			var->T_term = var->prev_confirmed_T_term;
 		}
 		else {
@@ -2847,6 +2971,25 @@ static void DrawFloat(uint16_t x, uint16_t y, uint8_t font_size, float f) {
 	cmd_number(x,y,font_size,OPT_CENTER,integer_part);
 	cmd_text(x+7,y,font_size,OPT_CENTER,".");
 	cmd_number(x+13,y,font_size,OPT_CENTER,fractional_part);
+}
+
+static void DrawPresetProcedure() {
+	cmd(CMD_DLSTART);
+	cmd(CLEAR(1, 1, 1)); // clear screen
+	
+	switch (presetProcedureState) {
+		case PRESET_PROCEDURE_FINISHED:
+			cmd_text(240,130,28,OPT_CENTER,"PRESETS SUCESSFULLY TRANSFERRED TO THE ECU");
+		break;
+		case PRESET_PROCEDURE_FAILED:
+			cmd(COLOR_RGB(255,0,0));;
+			cmd_text(240,130,28,OPT_CENTER,"PRESET PROCEDURE FAILED");
+		break;
+	}
+	
+	cmd(DISPLAY()); // display the image
+	cmd(CMD_SWAP);
+	cmd_exec();
 }
 
 //***********************************************************************************

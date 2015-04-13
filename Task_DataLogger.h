@@ -14,8 +14,10 @@
 #define PREALLOCATION_BYTES 20000000
 #define NEW_PREALLOCATION_THRESHOLD ( (PREALLOCATION_BYTES-100000)/BUFFER_LENGTH)
 
+extern QueueHandle_t xPresetQueue;
 extern QueueHandle_t xDataloggerCommandQueue;
 extern QueueHandle_t xDataloggerStatusQueue;
+
 extern TaskHandle_t dataLoggerHandle;
 
 extern uint32_t file_size_byte_counter;
@@ -26,7 +28,7 @@ extern uint8_t number_of_files_sdcard;
 enum EDataloggerStates		{DATALOGGER_IDLE,DATALOGGER_FILE_OPEN, DATALOGGER_LOGGING,DATALOGGER_USB_CONNECTED};
 extern enum EDataloggerStates dataloggerState;
 	
-enum EDataloggerCommands	{CREATE_NEW_FILE,START_LOGGING, CLOSE_FILE, DELETE_ALL_FILES,NO_COMMAND};
+enum EDataloggerCommands	{CREATE_NEW_FILE,START_LOGGING, CLOSE_FILE, DELETE_ALL_FILES,GET_PARAMETERS_FROM_FILE, NO_COMMAND};
 enum EDataloggerStatus		{STATUS_FILE_OPEN,STATUS_IS_LOGGING,STATUS_NO_FILE_OPEN,STATUS_USB_CONNECTED,STATUS_USB_NOT_CONNECTED};
 void dataLoggerTask();
 

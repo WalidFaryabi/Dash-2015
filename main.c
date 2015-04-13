@@ -57,6 +57,7 @@ int main(void) {
 	spi_mutex = xSemaphoreCreateMutex();
 	can_mutex_0 = xSemaphoreCreateMutex();
 	can_mutex_1 = xSemaphoreCreateMutex();
+	
 	xDataloggerCommandQueue = xQueueCreate(1,sizeof(uint8_t));
 	
 	BaseType_t status;

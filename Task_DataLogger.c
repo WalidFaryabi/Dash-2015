@@ -58,6 +58,8 @@ static char dataLogger_buffer[BUFFER_LENGTH] = "";
 
 enum EDataloggerStates dataloggerState = DATALOGGER_IDLE;
 QueueHandle_t xDataloggerCommandQueue = NULL;
+QueueHandle_t xPresetQueue = NULL;
+
 UINT byte_written;
 static uint32_t timeStamp = 0;
 static uint32_t offset = 0;
@@ -104,11 +106,16 @@ void dataLoggerTask() {
 					case DELETE_ALL_FILES:
 						deleteAllFiles();
 						break;
+					case GET_PARAMETERS_FROM_FILE:
+						
+						break;
 				}
 				if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 1 )  && (dataLoggerHandle == xSemaphoreGetMutexHolder(file_access_mutex)) ) {
 					dataloggerState = DATALOGGER_USB_CONNECTED;
 					xSemaphoreGive(file_access_mutex);
 				}
+				// Send command to datalogger to extract data from SD card and send it to task_menu via a queue ?
+				
 				vTaskDelay(40/portTICK_RATE_MS);
 			break;		
 			case DATALOGGER_LOGGING:
