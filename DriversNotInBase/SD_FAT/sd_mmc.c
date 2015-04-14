@@ -69,10 +69,7 @@
 #else
 #  define IS_SDIO()  false
 #endif
-#if (!defined SD_MMC_0_CD_GPIO) || (!defined SD_MMC_0_CD_DETECT_VALUE)
-#  warning No pin for card detection has been defined in board.h. \
-   The define SD_MMC_0_CD_GPIO, SD_MMC_0_CD_DETECT_VALUE must be added in board.h file.
-#endif
+
 
 
 

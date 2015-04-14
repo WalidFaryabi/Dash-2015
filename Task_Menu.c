@@ -108,6 +108,7 @@ static void DrawLaunchControlProcedure();
 static void DrawDataloggerInterface();
 
 static void DrawFloat(uint16_t x, uint16_t y, uint8_t font_size, float f);
+static void DrawPresetMenu();
 static void DrawPresetProcedure();
 
 //***********************************************************************************
@@ -180,7 +181,7 @@ const MenuEntry menu[] = {
 	{menu_207, 9,	10,	12,	7,	11, 25,	7,  MAIN_MENU,			NO_SETTING,					0,0},						//11 Datalogger
 	{menu_208, 9,	11,	12,	8,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0,0},						//12 Preset parameters
 	
-	{menu_400, 1,	10,	10,	6,	10, 10,	1,  VARIABLE,			KERS_SETTING,				0,0},						//13  KERS adjustment screen
+	{menu_400, 1,	10,	10,	6,	10, 10,	1,  KERS_OPTION,		KERS_SETTING,				0,0},						//13  KERS adjustment screen
 		
 	{menu_300, 1,	14,	14,	5,	14, 14,	1,  DEVICE_STATUS,		NO_SETTING,					0,0},						//14  Device status Screen
 		
@@ -317,7 +318,7 @@ static struct presetParameterStruct {
 };
 static struct presetParameterStruct presetParameters;
 
-// stuff
+// Identify which preset that has been chosen
 EAdjustmentParameter presetSetting;
 
 //***********************************************************************************
@@ -469,9 +470,14 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 			menuUpdate.update_menu = false;
 			DrawDataloggerInterface();
 		}
-		
 		break;
-		
+		case PRESET_SEL:
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawPresetMenu();
+		}
+		break;	
+	
 		case TRQ_CALIB:
 		calibrateTorquePedal(conf_msgs,false);
 		break;
@@ -487,14 +493,8 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 			snakeControlFunction(false,UP);
 		}
 		break;
-		case PRESET_PROCEDURE:
-			if (presetProcedureState == PRESET_PROCEDURE_OFF) {
-				presetProcedureState = PRESET_PROCEDURE_INIT;
-				presetProcedureHandling(false,conf_msgs);
-			}
-			else {
-				presetProcedureHandling(false,conf_msgs);
-			}
+		case PRESET_PROCEDURE:	
+		presetProcedureHandling(false,conf_msgs);
 		break;
 	}
 }
@@ -556,6 +556,8 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 		case PRESET_PROCEDURE_FINISHED:
 			DrawPresetProcedure();
 			if (ackPressed == true) {
+				btn.unhandledButtonAction = false;
+				btn.btn_type = NONE_BTN;
 				selected = MAIN_MENU_POS;
 				presetProcedureState = PRESET_PROCEDURE_OFF;
 			}
@@ -566,6 +568,8 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 		case PRESET_PROCEDURE_FAILED:
 			DrawPresetProcedure();
 			if (ackPressed == true) {
+				btn.unhandledButtonAction = false;
+				btn.btn_type = NONE_BTN;
 				selected = MAIN_MENU_POS;
 				presetProcedureState = PRESET_PROCEDURE_OFF;
 			}
@@ -729,14 +733,46 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 				//can_sendMessage(CAN0,ackMsg);
 				selected = 0; // Return to main menu
 			break;
-			
 			case PRESET_SEL:
-				if (presetProcedureState != PRESET_PROCEDURE_OFF) {
-					presetSetting = menu[selected].current_setting;
-					presetProcedureHandling(true,conf_msgs);
+				if (presetProcedureState == PRESET_PROCEDURE_OFF) {
+					presetProcedureState = PRESET_PROCEDURE_INIT;
+					// Get the file name off the preset file to get data from
+					// This file name is global and used in the datalogger task 
+					// to open the correct file.
+					switch (menu[selected].current_setting) {
+						case PRESET_1_SETTING:
+							strcpy(preset_file_name,"VWET10.txt");
+						break;
+						case PRESET_2_SETTING:
+							strcpy(preset_file_name,"VWET20.txt");
+						break;
+						case PRESET_3_SETTING:
+							strcpy(preset_file_name,"WET10.txt");
+						break;
+						case PRESET_4_SETTING:
+							strcpy(preset_file_name,"WET20.txt");
+						break;
+						case PRESET_5_SETTING:
+							strcpy(preset_file_name,"DRY10.txt");
+						break;
+						case PRESET_6_SETTING:
+							strcpy(preset_file_name,"DRY20.txt");
+						break;
+						case PRESET_7_SETTING:
+							strcpy(preset_file_name,"DRY25.txt");
+						break;
+						case PRESET_8_SETTING:
+							strcpy(preset_file_name,"GENERAL.txt");
+						break;
+					}
+					//presetSetting = menu[selected].current_setting;
+					presetProcedureHandling(false,conf_msgs);
 				}
 			break;
-				
+			case PRESET_PROCEDURE:
+				presetProcedureHandling(true,conf_msgs);
+				break;
+					
 			case ECU_OPTIONS:
 				switch (menu[selected].current_setting) {
 					case TORQUE_SETTING:
@@ -1004,6 +1040,9 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 		break;
 		case DL_OPTIONS:
 		DrawDataloggerInterface();
+		break;
+		case PRESET_SEL:
+		DrawPresetMenu();
 		break;
 		//case SNAKE_GAME:
 // 		if (snakeGameState == SNAKE_OFF) {
@@ -2971,6 +3010,88 @@ static void DrawFloat(uint16_t x, uint16_t y, uint8_t font_size, float f) {
 	cmd_number(x,y,font_size,OPT_CENTER,integer_part);
 	cmd_text(x+7,y,font_size,OPT_CENTER,".");
 	cmd_number(x+13,y,font_size,OPT_CENTER,fractional_part);
+}
+
+static void DrawPresetMenu() {
+	uint8_t pos = selected - menu[selected].position; // First position in current menu
+	uint8_t end_position  = pos + menu[pos].num_menupoints - 1;  // Last position in current menu
+	uint16_t y_position = 20;
+	uint16_t x_position = 10;
+	
+	uint16_t x_position_text = 120;
+	uint16_t y_position_text = 50;
+
+	uint16_t button_width = 230;
+	uint16_t button_heigth = 60;
+	uint8_t vert_spacing = 62;
+	
+	cmd(CMD_DLSTART);
+	cmd(CLEAR(1, 1, 1)); // clear screen
+	//cmd_text(236,20 , 29, OPT_CENTER, menu[pos].text);
+	cmd(COLOR_RGB(255,255,255));
+	for (pos; pos <= (end_position-4); pos ++) {
+		if ( pos == selected) {
+			
+			cmd(BEGIN(RECTS));
+			cmd(COLOR_RGB(255,255,20)); // Make the main battery rectangle grey
+			cmd(LINE_WIDTH(16*5));
+			//cmd_fgcolor(0xffff33);
+			//cmd(COLOR_RGB(0,0,0));
+			cmd(VERTEX2F(x_position*16,y_position*16));
+			cmd(VERTEX2F((x_position+button_width)*16, (y_position+button_heigth)*16));
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+			//cmd(COLOR_RGB(255,255,255));
+			cmd(COLOR_RGB(0,0,0));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			
+			cmd_coldstart();
+		}
+		else {
+			//cmd_fgcolor(0x302020);
+			//cmd_fgcolor(0x0);
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+		}
+		y_position += vert_spacing;
+		y_position_text += vert_spacing;
+	}
+	
+	y_position = 20;
+	x_position = 250;
+	
+	x_position_text = 360;
+	y_position_text = 50;
+	for (pos ; pos <= end_position; pos ++) {
+		if ( pos == selected) {
+			cmd(BEGIN(RECTS));
+			cmd(COLOR_RGB(255,255,20)); // Make the main battery rectangle grey
+			cmd(LINE_WIDTH(16*5));
+			//cmd_fgcolor(0xffff33);
+			//cmd(COLOR_RGB(0,0,0));
+			cmd(VERTEX2F(x_position*16,y_position*16));
+			cmd(VERTEX2F((x_position+button_width)*16, (y_position+button_heigth)*16));
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+			//cmd(COLOR_RGB(255,255,255));
+			cmd(COLOR_RGB(0,0,0));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			
+			cmd_coldstart();
+		}
+		else {
+			//cmd_fgcolor(0x302020);
+			//cmd_fgcolor(0x0);
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+		}
+		y_position += vert_spacing;
+		y_position_text += vert_spacing;
+	}
+	
+	cmd(DISPLAY()); // display the image
+	cmd(CMD_SWAP);
+	cmd_exec();
 }
 
 static void DrawPresetProcedure() {

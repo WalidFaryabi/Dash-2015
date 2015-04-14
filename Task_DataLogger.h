@@ -14,7 +14,16 @@
 #define PREALLOCATION_BYTES 20000000
 #define NEW_PREALLOCATION_THRESHOLD ( (PREALLOCATION_BYTES-100000)/BUFFER_LENGTH)
 
+#define LEN_PRESET_FILENAME 20
+
+//************************************************//
+//--------------PRESET RELATED--------------------//
+//************************************************//
 extern QueueHandle_t xPresetQueue;
+extern char preset_file_name[LEN_PRESET_FILENAME];
+
+
+
 extern QueueHandle_t xDataloggerCommandQueue;
 extern QueueHandle_t xDataloggerStatusQueue;
 

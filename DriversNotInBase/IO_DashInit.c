@@ -13,15 +13,15 @@
 // 		rotary_ccw = true;
 // 	}
 // }
-static void rotaryEncoderInterruptFunction() {
-	PIOA->PIO_ISR;
-	if (!pio_readPin(ROT_A_PIO, ROT_A_PIN)) { // Check if ROT A is low
-		rotary_cw = true;
-	}
-	else {
-		rotary_ccw = true;
-	}
-}
+// static void rotaryEncoderInterruptFunction() {
+// 	PIOA->PIO_ISR;
+// 	if (!pio_readPin(ROT_A_PIO, ROT_A_PIN)) { // Check if ROT A is low
+// 		rotary_cw = true;
+// 	}
+// 	else {
+// 		rotary_ccw = true;
+// 	}
+// }
 
 
 void dash_io_init() {

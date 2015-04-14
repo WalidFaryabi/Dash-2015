@@ -40,6 +40,7 @@ void can_setupFilters(Can *can, uint32_t acceptence_masks[7], uint32_t id_masks[
 enum CanTXstatus can_sendMessage(Can *can, struct CanMessage message);	//NOT THREADSAFE
 enum CANReceiveStatus can_popMessage(Can *can, struct CanMessage *message); //NOT THREADSAFE
 //must enable interrupt in nvic for this to work. Handle the interrupt by defining a CAN_HANDLER() function
+void can_enableRXInterrupt(Can *can);
 
 
 #endif /* _CAN_H_ */

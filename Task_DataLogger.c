@@ -13,8 +13,18 @@
 #include <stdio.h>
 #include <string.h>
 
+static void getPresetParametersFromFile(char file_name[]);
+
+struct presetParameterStruct {
+	float p_term;
+	float i_term;
+	float a;
+	float b;
+};
+static struct presetParameterStruct presetParametersToMenuTask;
+
 Ctrl_status status;
-FRESULT res, decideFile;
+FRESULT res, filePresent;
 FATFS fs;
 FIL file_object;
 FILINFO fno;
@@ -66,15 +76,14 @@ static uint32_t offset = 0;
 uint32_t file_size_byte_counter = 0;
 uint8_t number_of_files_sdcard = 0;
 static uint32_t preallocation_counter = 0;
+
+char preset_file_name[LEN_PRESET_FILENAME] = "";
 static char fileName[10] = "";
 TaskHandle_t dataLoggerHandle = NULL;
 
 uint32_t start_time = 0;
 uint32_t stop_time = 0;
-
 void dataLoggerTask() {
-	TickType_t xLastwakeTime;
-	
 	memset(&fs, 0, sizeof(FATFS));
 	res = f_mount(LUN_ID_SD_MMC_0_MEM, &fs);
 	if (FR_INVALID_DRIVE == res) {
@@ -107,7 +116,7 @@ void dataLoggerTask() {
 						deleteAllFiles();
 						break;
 					case GET_PARAMETERS_FROM_FILE:
-						
+						getPresetParametersFromFile(preset_file_name);
 						break;
 				}
 				if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 1 )  && (dataLoggerHandle == xSemaphoreGetMutexHolder(file_access_mutex)) ) {
@@ -159,8 +168,8 @@ static void deleteAllFiles() {
 	number_of_files_sdcard = 0;
 	for (uint8_t i = 0; i < 100; i++) {
 		snprintf(test_name,10, "log%02d.txt",i);
-		decideFile = f_stat(test_name, &fno);
-		if (decideFile == FR_OK) {
+		filePresent = f_stat(test_name, &fno);
+		if (filePresent == FR_OK) {
 			f_unlink(test_name); // Delete the file if it exists
 		}
 		else {
@@ -178,8 +187,6 @@ static void createOpenSeekNewFile() {
 	file_size_byte_counter = 0;
 	offset = 0;
 }
-
-
 
 static void logDataToCurrentFile() {
 	//if (xQueueReceive(xDataLoggerQueue,&SensorPacketReceive,0) == pdPASS) { // Blocks until it has received an element
@@ -248,14 +255,57 @@ static void createFileName(char file_name[]) {
 	char test_name[10] = "";
 	for (uint8_t i = 0; i < 100; i++) {
 		snprintf(test_name,10, "log%02d.txt",i);
-		decideFile = f_stat(test_name, &fno);
-		//decideFile = f_stat("log00.txt", &fno);
-		if (decideFile != FR_OK) {
+		filePresent = f_stat(test_name, &fno);
+		//filePresent = f_stat("log00.txt", &fno);
+		if (filePresent != FR_OK) {
 			//strncpy(file_name,test_name,5);
 			snprintf(file_name,10,"log%02d.txt",i);
 			number_of_files_sdcard = i+1;
 			break;
 		}
+	}
+}
+
+static void getPresetParametersFromFile(char file_name[]) {
+	uint32_t integer_part;
+	uint32_t decimal_part;
+	char integer_part_s[10];
+	char decimal_part_s[10];
+	
+	char line[50];
+	res = f_open(&file_object, (char const *)fileName, FA_OPEN_EXISTING | FA_READ);
+	if (res == FR_OK) {
+		while ( f_gets(line, sizeof line, &file_object) ) {
+			char number[20];
+			strcpy(number, line + 2);
+			char * ptr_to_token;
+			// Get the integer part
+			ptr_to_token = strtok(number,".");
+			strcpy(integer_part_s,ptr_to_token);
+			// Get the decimal part
+			ptr_to_token = strtok(NULL,".");
+			strcpy(decimal_part_s,ptr_to_token);
+			integer_part = atoi(integer_part_s);
+			decimal_part = atoi(decimal_part_s);
+			float f = integer_part + (float) decimal_part/100;
+
+			switch (line[0]) {
+				
+				case 'P':
+					presetParametersToMenuTask.p_term = f;
+				break;
+				case 'I':
+					presetParametersToMenuTask.i_term = f;
+				break;
+				case 'S':
+					presetParametersToMenuTask.a = f;
+				break;
+			}
+		}	
+		// Close file
+		f_close(&file_object);
+		// Filled the preset struct.. Send it to task menu
+		xQueueSendToBack(xPresetQueue,&presetParametersToMenuTask,0);
 	}
 }
 

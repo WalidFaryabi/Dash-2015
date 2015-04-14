@@ -606,7 +606,6 @@ bool hsmci_wait_end_of_write_blocks(void)
 			return false;
 		}
 	} while (!(sr & HSMCI_SR_NOTBUSY));
-	uint8_t h;
 	//assert(HSMCI->HSMCI_SR & HSMCI_SR_FIFOEMPTY);
 	return true;
 }
