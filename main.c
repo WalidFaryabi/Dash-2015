@@ -58,12 +58,13 @@ int main(void) {
 	can_mutex_0 = xSemaphoreCreateMutex();
 	can_mutex_1 = xSemaphoreCreateMutex();
 	
-	xDataloggerCommandQueue = xQueueCreate(1,sizeof(uint8_t));
+	xDataloggerCommandQueue = xQueueCreate(5,sizeof(uint8_t));
+	xPresetQueue			= xQueueCreate(2,sizeof(struct presetParameterStruct));
 	
 	BaseType_t status;
 	uint32_t bytesremaining;
 	
-	status = xTaskCreate(dashTask,"dashTask",2000, NULL,  tskIDLE_PRIORITY + 3, NULL);
+	status = xTaskCreate(dashTask,"dashTask",2500, NULL,  tskIDLE_PRIORITY + 3, NULL);
 	bytesremaining = xPortGetFreeHeapSize();
 	status = xTaskCreate(usbMscTask,"MscTask",1000, NULL, tskIDLE_PRIORITY + 1, &mscTaskHandle);
 	bytesremaining = xPortGetFreeHeapSize();

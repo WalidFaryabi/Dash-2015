@@ -21,7 +21,10 @@
 //************************************************//
 extern QueueHandle_t xPresetQueue;
 extern char preset_file_name[LEN_PRESET_FILENAME];
-
+struct presetParameterStruct {
+	float p_term;
+	float i_term;
+};
 
 
 extern QueueHandle_t xDataloggerCommandQueue;

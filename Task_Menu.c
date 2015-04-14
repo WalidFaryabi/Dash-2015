@@ -179,7 +179,7 @@ const MenuEntry menu[] = {
 	{menu_205, 9,	8,	10,	5,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0,0},						//9  IMU options
 	{menu_206, 9,	9,	11,	6,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0,0},						//10 Snake
 	{menu_207, 9,	10,	12,	7,	11, 25,	7,  MAIN_MENU,			NO_SETTING,					0,0},						//11 Datalogger
-	{menu_208, 9,	11,	12,	8,	12, 8,	8,  MAIN_MENU,			NO_SETTING,					0,0},						//12 Preset parameters
+	{menu_208, 9,	11,	12,	8,	12, 29,	8,  MAIN_MENU,			NO_SETTING,					0,0},						//12 Preset parameters
 	
 	{menu_400, 1,	10,	10,	6,	10, 10,	1,  KERS_OPTION,		KERS_SETTING,				0,0},						//13  KERS adjustment screen
 		
@@ -192,7 +192,7 @@ const MenuEntry menu[] = {
 	{"SteerCal",1,	19,	19,	19,	19,  19, 0, STEER_CALIB,		NO_SETTING,					0,0},						//19 Steer calib
 	{menu_500, 1,	20,	20,	20,	20,	 20, 0, TRQ_CALIB,			NO_SETTING,					0,0},						//20 Torque calibration screen
 		
-	{menu_601, 4,	21,	22,	8,	21, 21,	0,  ECU_OPTIONS,		TORQUE_SETTING,				slider_torque_update,0},	//21 Max torque slider
+	{menu_601, 4,	21,	22,	8,	21, 21,	0,  ECU_OPTIONS,		TORQUE_SETTING,				adjustParameters,0},	//21 Max torque slider
 	{menu_602, 4,	21,	23,	8,	22, 22,	1,  ECU_OPTIONS,		ECU_P_SETTING,				slider_P_term_update,0},	//22 ECU P slider
 	{menu_603, 4,	22,	24,	8,	23, 23,	2,  ECU_OPTIONS,		ECU_D_SETTING,				slider_D_term_update,0},	//23 ECU D slider
 	{menu_604, 4,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		ECU_I_SETTING,				slider_I_term_update,0},	//24 ECU I slider
@@ -234,7 +234,7 @@ const MenuEntry menu[] = {
 #define LOCKED_SEL_POS				28
 #define PRESET_PROCEDURE_POS		37
 
-#define NUM_MENUS_UPDATE 1 // Number of menus to specifiy a certain update frequency for
+#define NUM_MENUS_UPDATE 2 // Number of menus to specifiy a certain update frequency for
 #define RTDS_DURATION_MS 3000
 #define WATCHDOG_RESET_COMMAND  ( (0xA5 << 24) | (1<<0)) // Command to write to WDT CR register to reset the counter
 //***********************************************************************************
@@ -267,9 +267,11 @@ static EPresetStates				presetProcedureState= PRESET_PROCEDURE_OFF;
 //***********************************************************************************
 typedef struct menuUpdateFrequency { // Private global for this source
 	bool update_menu;
+	bool update_procedures;
 } menuUpdateStatus;
 menuUpdateStatus menuUpdate = {
-	.update_menu = false
+	.update_menu = false,
+	.update_procedures = false
 };
 Buttons btn = {
 	.btn_type				= NONE_BTN,
@@ -296,7 +298,7 @@ DeviceState device_state = {
 	.STEER_POS	= DEAD,
 	.IMD		= DEAD
 };
-typedef enum {STEP_POINT_ONE, STEP_ONE, STEP_TEN}EStepSize ;
+typedef enum {STEP_POINT_ONE = 0, STEP_ONE = 1, STEP_TEN=10}EStepSize ;
 static struct StepSizeForVariables {
 	EStepSize p_term;
 	EStepSize i_term;
@@ -310,13 +312,10 @@ static struct StepSizeForVariables StepSizeVar = {
 	.torque = STEP_ONE
 	};
 	
-static struct presetParameterStruct {
-	float p_term;
-	float i_term;
-	float a;
-	float b;
-};
-static struct presetParameterStruct presetParameters;
+static struct presetParameterStruct presetParameters = {
+	.i_term = 0,
+	.p_term = 0
+	};
 
 // Identify which preset that has been chosen
 EAdjustmentParameter presetSetting;
@@ -346,7 +345,7 @@ void dashTask() {
 	TSLedTimer				= xTimerCreate("TSLed", 300/portTICK_RATE_MS,pdTRUE,0,vTSLedTimerCallback);
 	createAndStartMenuUpdateTimers();
 	
-	xPresetQueue			= xQueueCreate(1,sizeof(presetParameters));
+	
 	
 	//Init states
 	SensorValues		sensor_values;
@@ -379,11 +378,11 @@ void dashTask() {
 	vTaskDelay(50/portTICK_RATE_MS);
 	spi_setBaudRateHz(120000000,20000000,0); // Increase speed after init
 	//Upload the highvoltage icon to the FT800 
-	/*uint32_t ram_offset=0;
+	uint32_t ram_offset=0;
 	for(int i=0; i<4130; i++){
 		wr16(ram_offset, high_voltage_symbol[i]);
 		ram_offset +=2;
-	}*/
+	}
 	
 	while(1) {
 		// The delay for this task is given by the wait time specified in the queuereceive function
@@ -471,18 +470,21 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 			DrawDataloggerInterface();
 		}
 		break;
-		case PRESET_SEL:
-		if ((menuUpdate.update_menu == true) ) {
-			menuUpdate.update_menu = false;
-			DrawPresetMenu();
-		}
-		break;	
+
 	
 		case TRQ_CALIB:
-		calibrateTorquePedal(conf_msgs,false);
+		if (menuUpdate.update_procedures == true) {
+			menuUpdate.update_procedures = false;
+			calibrateTorquePedal(conf_msgs,false);
+		}
+		
 		break;
 		case STEER_CALIB:
-		calibrateSteering(conf_msgs,false);
+			if (menuUpdate.update_procedures == true) {
+				menuUpdate.update_procedures = false;
+				calibrateSteering(conf_msgs,false);
+			}
+		
 		break;
 		case SNAKE_GAME:
 		if (snakeGameState == SNAKE_OFF) {
@@ -493,8 +495,17 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 			snakeControlFunction(false,UP);
 		}
 		break;
+		case PRESET_SEL:
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawPresetMenu();
+		}
+		break;		
 		case PRESET_PROCEDURE:	
-		presetProcedureHandling(false,conf_msgs);
+		if (menuUpdate.update_procedures == true) {
+			menuUpdate.update_procedures = false;
+			presetProcedureHandling(false,conf_msgs);
+		}
 		break;
 	}
 }
@@ -507,12 +518,12 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 		case PRESET_PROCEDURE_INIT:
 			// Stop and close file for datalogger
 			// Send command to extract data from file 
-			xQueueSendToBack(xDataloggerCommandQueue,&close_file,10);
-			xQueueSendToBack(xDataloggerCommandQueue,&get_files,10);
+			xQueueSendToBack(xDataloggerCommandQueue,&close_file,10/portTICK_RATE_MS);
+			xQueueSendToBack(xDataloggerCommandQueue,&get_files,10/portTICK_RATE_MS);
 			presetProcedureState = PRESET_PROCEDURE_WAITING;
 		break;
 		case PRESET_PROCEDURE_WAITING:
-			if (xQueueReceive(xPresetQueue,&presetParameters, 1000) == pdPASS) {
+			if (xQueueReceive(xPresetQueue,&presetParameters, 1000/portTICK_RATE_MS) == pdPASS) {
 				// Received all the preset parameters from the datalogger task
 				presetProcedureState = PRESET_PROCEDURE_SEND_P_TERM;
 				// Send the struct to ECU one by one.. wait for confirmation for each
@@ -527,6 +538,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 			can_freeRTOSSendMessage(CAN0, EcuPTerm);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
+			presetProcedureState = WAIT_P_TERM;
 		break;
 		case WAIT_P_TERM:
 			if (conf_msgs->ECU_parameter_confirmed == true) {
@@ -542,6 +554,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 			can_freeRTOSSendMessage(CAN0, EcuITerm);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
+			presetProcedureState = WAIT_I_TERM;
 		break;
 		case WAIT_I_TERM:
 			if (conf_msgs->ECU_parameter_confirmed == true) {
@@ -725,7 +738,6 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 	else if (btn->btn_type == PUSH_ACK) {
 		// Check if there is an error first.. Since acknowledge button is used for both variables and errors / faults
 		switch (menu[selected].current_menu) {
-			
 			case DL_OPTIONS:
 				menu[selected].dataloggerFunc();
 			break;
@@ -766,7 +778,8 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 						break;
 					}
 					//presetSetting = menu[selected].current_setting;
-					presetProcedureHandling(false,conf_msgs);
+					//presetProcedureHandling(false,conf_msgs);
+					selected = menu[selected].push_button;
 				}
 			break;
 			case PRESET_PROCEDURE:
@@ -823,9 +836,10 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 					snakeControlFunction(false,UP);
 				}
 			break;
+			default:
+			selected = menu[selected].push_button;
+			break;
 		}
-		// This is for choosing a selected menu
-		selected = menu[selected].push_button;
 	}
 	
 	else if (btn->btn_type == ROT_ACK) {
@@ -1198,6 +1212,9 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 					break;
 				}
 			break;
+			case ID_ECU_PARAMETER_CONFIRMED:
+				conf_msg->ECU_parameter_confirmed = true;
+				break;
 			case ID_IN_ECU_LC:
 				switch (ReceiveMsg.data.u8[0]) {
 					case 1:
@@ -1628,7 +1645,7 @@ static void vCalibrationTimerCallback(TimerHandle_t xTimer){
 }
 static void vVarConfTimerCallback(TimerHandle_t xTimer) {
 	parameter_confirmation_timed_out = true;
-	selected = prev_selected;
+	//selected = prev_selected;
 }
 static void vMenuUpdateCallback(TimerHandle_t pxTimer) {
 	uint8_t menu_id;
@@ -1636,8 +1653,12 @@ static void vMenuUpdateCallback(TimerHandle_t pxTimer) {
 	switch (menu_id) {
 		case 0: // Main Screen
 		menuUpdate.update_menu = true;
-		xTimerReset(timer_menuUpdate[0],0);
+		//xTimerReset(timer_menuUpdate[0],0);
 		break;
+		case 1:
+		menuUpdate.update_procedures = true;
+		break;
+		
 	}
 }
 static void vTSLedTimerCallback(TimerHandle_t pxtimer){
@@ -1707,8 +1728,8 @@ static void init_error_struct(ModuleError *error) {
 }
 static void init_variable_struct(Variables *var) {
 	var->min_torque = 0;
-	var->torque = 0;
-	var->prev_confirmed_torque = 0;
+	var->torque = 50;
+	var->prev_confirmed_torque = 50;
 	var->max_torque = 100;
 	
 	var->min_P_term = 0;
@@ -1844,12 +1865,15 @@ static void setVariableBasedOnConfirmation(Variables *var) {
 
 static void createAndStartMenuUpdateTimers() {
 	timer_menuUpdate[0] = xTimerCreate("MainScreen",100/portTICK_RATE_MS, pdTRUE, (void *) 0 ,vMenuUpdateCallback);
-	if (timer_menuUpdate[0] == NULL) {
-		
-	}
-	else if (xTimerStart(timer_menuUpdate[0],0) != pdPASS) {
-		
-	}
+	timer_menuUpdate[1] = xTimerCreate("procedure",50/portTICK_RATE_MS, pdTRUE, (void *) 1 ,vMenuUpdateCallback);
+	xTimerStart(timer_menuUpdate[0],0);
+	xTimerStart(timer_menuUpdate[1],0);
+// 	if (timer_menuUpdate[0] == NULL) {
+// 		
+// 	}
+// 	else if (xTimerStart(timer_menuUpdate[0],0) != pdPASS) {
+// 		
+// 	}
 }
 
 //***********************************************************************************
@@ -2336,6 +2360,7 @@ static void DrawAdjustmentMenu() {
 
 static void DrawECUAdjustmentScreen(Variables *var) {
 	cmd(CMD_DLSTART);
+	//cmd(CLEAR_COLOR_RGB(50,50,50));
 	cmd(CLEAR(1, 1, 1)); // clear screen
 	/*Draw 5 variable names, 5 sliders, 5 min values, 5 max values and current value at center of each slider in big font.
 	Also draw a frame around the current selected variable. */
@@ -2346,20 +2371,22 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 // 	cmd(VERTEX2F(480*16, 272*16));
 // 	cmd(VERTEX2F(245*16,272*16));
 // 	cmd(VERTEX2F(245*16,0));
+
+//progress bar side 188
 	uint8_t menu_pos = ECU_SETTINGS_MENU_POS;
 	uint8_t variable_pos = ECU_SETTINGS_VARIABLES_POS;
 	uint8_t end_menu_pos = menu_pos + menu[ECU_SETTINGS_MENU_POS].num_menupoints - 1;
 	uint8_t end_variable_pos = variable_pos + menu[ECU_SETTINGS_VARIABLES_POS].num_menupoints -1;
 	
-	uint32_t y_menu_position = 52;
-	uint32_t x_menu_position = 5;
+	uint32_t y_menu_position = 56;
+	uint32_t x_menu_position = 25;
 	uint32_t vertical_menu_spacing = 55;
 	uint8_t font_size = 27;
-	
-	cmd_text(240,10,30,OPT_CENTER,"ECU OPTIONS");
+	//cmd(COLOR_RGB())
+	cmd_text(240,20,29,OPT_CENTER,"ECU OPTIONS");
 	for (menu_pos; menu_pos <= end_menu_pos ; menu_pos ++) {
 		if (selected == menu_pos) {
-			cmd(COLOR_RGB(255,255,0));
+			cmd(COLOR_RGB(255,255,255));
 			cmd_text(x_menu_position,y_menu_position,font_size,OPT_FLAT,menu[menu_pos].text);
 		}
 		else {
@@ -2368,7 +2395,7 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 		}
 		y_menu_position += vertical_menu_spacing;
 	}
-	uint32_t x_slider_position = 230;
+	uint32_t x_slider_position = 200;
 	uint32_t y_slider_position = 60;
 	uint8_t vertical_slider_spacing = 55;
 	uint32_t slider_width = 190;
@@ -2389,131 +2416,42 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 	//Right of knob : bgcolor
 	uint32_t color_right = 0x0;
 	uint32_t color_knob  = 0x0000FF;
+	//static void DrawParallellogram(uint16_t y_top_left);
+	
 
-	for (variable_pos; variable_pos <= end_variable_pos; variable_pos ++) {
-		
-		if (menu[variable_pos].current_setting == TORQUE_SETTING) {
-			if (selected == variable_pos) {
-				cmd_fgcolor(0x000000); // Try black knob
-				cmd_bgcolor(color_right); // Yellow right of knob
-				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
+	for(variable_pos; variable_pos <= end_variable_pos; variable_pos ++) {
+		switch (menu[variable_pos].current_setting) {
+			case TORQUE_SETTING:
+				if (selected == variable_pos) {
+					cmd(COLOR_RGB(60,80,110));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,80*16));
+					cmd(VERTEX2F(5*16,50*16));
+					cmd(VERTEX2F(450*16,50*16));
+					cmd(VERTEX2F(470*16,80*16));
+					cmd(VERTEX2F(25*16,80*16));
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right); // 
+					cmd(COLOR_RGB(255,255,0)); // 
+				}
+				else {
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right);
+					cmd(COLOR_RGB(255,255,255)); //
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,80*16));
+					cmd(VERTEX2F(5*16,50*16));
+					cmd(VERTEX2F(450*16,50*16));
+					cmd(VERTEX2F(470*16,80*16));
+					cmd(VERTEX2F(25*16,80*16));
+					
+				}
 				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->torque,100);
-				cmd_coldstart();
-			}
-			else {
-				cmd_coldstart();
-				cmd_bgcolor(color_right);
-				cmd(COLOR_RGB(140,140,140)); // Yellow left of knob
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->torque,100);
-			}
-			cmd(COLOR_RGB(255,255,255));
-			cmd_number(x_slider_position-x_num_adj,y_slider_position-y_num_adj,num_font_size,OPT_FLAT,var->min_torque);
-			cmd_number(x_slider_position+x_max_num_adj,y_slider_position - y_num_adj,num_font_size,OPT_FLAT,var->max_torque);
-			cmd(COLOR_RGB(255,0,0));
-			cmd_number(x_slider_position+(slider_width/2),y_slider_position +y_num_adj,num_font_size,OPT_CENTER,var->torque);
-
-		}
-		else if (menu[variable_pos].current_setting == ECU_P_SETTING) {
-			if (selected == variable_pos) {
-				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(color_right); // Yellow right of knob
-				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT, var->P_term - var->min_P_term, range_P_term);
-				cmd_coldstart();
-			}
-			else {
-				cmd_coldstart();
-				cmd_bgcolor(color_right);
-				cmd(COLOR_RGB(140,140,140)); 
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT, var->P_term - var->min_P_term, range_P_term);
-			}
-			cmd(COLOR_RGB(255,255,255));
-			cmd_number(x_slider_position-x_num_adj,y_slider_position-y_num_adj,num_font_size,OPT_FLAT,var->min_P_term);
-			cmd_number(x_slider_position+x_max_num_adj,y_slider_position - y_num_adj,num_font_size,OPT_FLAT,var->max_P_term);
-			cmd(COLOR_RGB(255,0,0));
-			cmd_number(x_slider_position+(slider_width/2),y_slider_position +y_num_adj,num_font_size,OPT_CENTER,var->P_term);
-		}
-		else if (menu[variable_pos].current_setting == ECU_D_SETTING) {
-			if (selected == variable_pos) {
-				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(color_right); // Yellow right of knob
-				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->D_term - var->min_D_term,range_D_term);
-				cmd_coldstart();
-			}
-			else {
-				cmd_coldstart();
-				cmd_bgcolor(color_right);
-				cmd(COLOR_RGB(140,140,140)); 
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->D_term - var->min_D_term,range_D_term);
-			}
-			cmd(COLOR_RGB(255,255,255));
-			cmd_number(x_slider_position-x_num_adj,y_slider_position-y_num_adj,num_font_size,OPT_FLAT,var->min_D_term);
-			cmd_number(x_slider_position+x_max_num_adj,y_slider_position - y_num_adj,num_font_size,OPT_FLAT,var->max_D_term);
-			cmd(COLOR_RGB(255,0,0));
-			cmd_number(x_slider_position+(slider_width/2),y_slider_position+y_num_adj,num_font_size,OPT_CENTER,var->D_term);
-		}
-		else if (menu[variable_pos].current_setting == ECU_I_SETTING) {
-			if (selected == variable_pos) {
-				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(color_right); // Yellow right of knob
-				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->I_term - var->min_I_term,range_I_term);
-				cmd_coldstart();
-			}
-			else {
-				cmd_coldstart();
-				cmd_bgcolor(color_right);
-				cmd(COLOR_RGB(140,140,140)); // Yellow left of knob
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->I_term - var->min_I_term,range_I_term);
-			}
-			cmd(COLOR_RGB(255,255,255));
-			cmd_number(x_slider_position-x_num_adj,y_slider_position-y_num_adj,num_font_size,OPT_FLAT,var->min_I_term);
-			cmd_number(x_slider_position+x_max_num_adj,y_slider_position - y_num_adj,num_font_size,OPT_FLAT,var->max_I_term);
-			cmd(COLOR_RGB(255,0,0));
-			cmd_number(x_slider_position+(slider_width/2),y_slider_position+y_num_adj,num_font_size,OPT_CENTER,var->I_term);
-		}
-		
-		else if (menu[variable_pos].current_setting == ECU_LC_RT_SETTING) {
-			if (selected == variable_pos) {
-				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(color_right); // Yellow right of knob
-				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->T_term - var->min_T_term,range_T_term);
-				cmd_coldstart();
-			}
-			else {
-				cmd_coldstart();
-				cmd_bgcolor(color_right);
-				cmd(COLOR_RGB(140,140,140)); // Yellow left of knob
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->I_term - var->min_T_term,range_T_term);
-			}
-			cmd(COLOR_RGB(255,255,255));
-			cmd_number(x_slider_position-x_num_adj,y_slider_position-y_num_adj,num_font_size,OPT_FLAT,var->min_T_term);
-			cmd_number(x_slider_position+x_max_num_adj,y_slider_position - y_num_adj,num_font_size,OPT_FLAT,var->max_T_term);
-			cmd_number(x_slider_position+(slider_width/2),y_slider_position- y_num_adj,num_font_size,OPT_CENTER,var->T_term);
-		}
-
-		else if (menu[variable_pos].current_setting == ECU_LC_INIT_TORQ_SETTING) {
-			if (selected == variable_pos) {
-				cmd_fgcolor(0xff33ff); // Pink knob
-				cmd_bgcolor(color_right); // Yellow right of knob
-				cmd(COLOR_RGB(255,255,0)); // Yellow left of knob
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->R_term - var->min_R_term,range_R_term);
-				cmd_coldstart();
-			}
-			else {
-				cmd_coldstart();
-				cmd_bgcolor(color_right);
-				cmd(COLOR_RGB(140,140,140)); // Yellow left of knob
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->R_term - var->min_R_term,range_R_term);
-			}
-			cmd(COLOR_RGB(255,255,255));
-			cmd_number(x_slider_position-x_num_adj,y_slider_position-y_num_adj,num_font_size,OPT_FLAT,var->min_R_term);
-			cmd_number(x_slider_position+x_max_num_adj,y_slider_position - y_num_adj,num_font_size,OPT_FLAT,var->max_R_term);
-			cmd_number(x_slider_position+(slider_width/2),y_slider_position,num_font_size,OPT_CENTER,var->R_term);
-		}
-		
+				cmd(COLOR_RGB(255,255,255));
+				//cmd(COLOR_RGB(255,0,0));
+				cmd_number(425,y_slider_position +4,num_font_size,OPT_CENTER,var->torque);
+			break;
+		}	
 		y_slider_position += vertical_slider_spacing;
 	}
 	cmd(DISPLAY()); // display the image
@@ -3137,7 +3075,7 @@ static void adjustParameters(ERotary_direction dir, Variables *var) {
 			if ( (dir == CW) && ( (var->torque + StepSizeVar.torque) <= var->max_torque )  ) {
 				var->torque += StepSizeVar.torque;
 			}
-			else if ( (dir == CCW) && ( (var->torque - StepSizeVar.torque)  >= var->min_torque) ) {
+			else if ( (dir == CCW) && ( var->torque   >= (var->min_torque + StepSizeVar.torque) ) ) {
 				var->torque -= StepSizeVar.torque;
 			}
 		break;

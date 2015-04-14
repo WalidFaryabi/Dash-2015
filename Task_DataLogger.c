@@ -15,13 +15,10 @@
 
 static void getPresetParametersFromFile(char file_name[]);
 
-struct presetParameterStruct {
-	float p_term;
-	float i_term;
-	float a;
-	float b;
-};
-static struct presetParameterStruct presetParametersToMenuTask;
+static struct presetParameterStruct presetParametersToMenuTask = {
+	.p_term = 0,
+	.i_term = 0
+	};
 
 Ctrl_status status;
 FRESULT res, filePresent;
@@ -273,7 +270,7 @@ static void getPresetParametersFromFile(char file_name[]) {
 	char decimal_part_s[10];
 	
 	char line[50];
-	res = f_open(&file_object, (char const *)fileName, FA_OPEN_EXISTING | FA_READ);
+	res = f_open(&file_object, (char const *)file_name, FA_OPEN_EXISTING | FA_READ);
 	if (res == FR_OK) {
 		while ( f_gets(line, sizeof line, &file_object) ) {
 			char number[20];
@@ -288,17 +285,12 @@ static void getPresetParametersFromFile(char file_name[]) {
 			integer_part = atoi(integer_part_s);
 			decimal_part = atoi(decimal_part_s);
 			float f = integer_part + (float) decimal_part/100;
-
 			switch (line[0]) {
-				
 				case 'P':
 					presetParametersToMenuTask.p_term = f;
 				break;
 				case 'I':
 					presetParametersToMenuTask.i_term = f;
-				break;
-				case 'S':
-					presetParametersToMenuTask.a = f;
 				break;
 			}
 		}	
@@ -306,6 +298,9 @@ static void getPresetParametersFromFile(char file_name[]) {
 		f_close(&file_object);
 		// Filled the preset struct.. Send it to task menu
 		xQueueSendToBack(xPresetQueue,&presetParametersToMenuTask,0);
+		//volatile uint32_t bytesremaining;
+		//bytesremaining = xPortGetFreeHeapSize();
+		uint8_t h = 0;
 	}
 }
 

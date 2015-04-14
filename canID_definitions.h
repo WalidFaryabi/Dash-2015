@@ -28,7 +28,9 @@
 //***************************************//
 
 #define	ID_ECU_CAR_STATES			0x230
-#define ID_IN_ECU_LC				0x231
+#define ID_ECU_PARAMETER_CONFIRMED	0x231
+#define ID_IN_ECU_LC				0x232
+
 
 
 
