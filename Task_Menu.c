@@ -20,6 +20,7 @@
 //VANDRING GASSPEDAL
 
 typedef enum {PEDAL_IN, PEDAL_OUT} EPedalPosition;
+
 //**********************************************************************************//
 //------------------------------------THE MAIN DASH FUNCTIONS-----------------------//
 //**********************************************************************************//
@@ -38,7 +39,7 @@ static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,De
 //***********************************************************************************
 static void can_freeRTOSSendMessage(Can *can,struct CanMessage message);
 
-static void setVariableBasedOnConfirmation(Variables *var);
+static void setParameterBasedOnConfirmation(Variables *var);
 static void clearAllButtons();
 
 static bool checkForError(ModuleError *error);
@@ -192,10 +193,10 @@ const MenuEntry menu[] = {
 	{"SteerCal",1,	19,	19,	19,	19,  19, 0, STEER_CALIB,		NO_SETTING,					0,0},						//19 Steer calib
 	{menu_500, 1,	20,	20,	20,	20,	 20, 0, TRQ_CALIB,			NO_SETTING,					0,0},						//20 Torque calibration screen
 		
-	{menu_601, 4,	21,	22,	8,	21, 21,	0,  ECU_OPTIONS,		TORQUE_SETTING,				adjustParameters,0},	//21 Max torque slider
-	{menu_602, 4,	21,	23,	8,	22, 22,	1,  ECU_OPTIONS,		ECU_P_SETTING,				slider_P_term_update,0},	//22 ECU P slider
-	{menu_603, 4,	22,	24,	8,	23, 23,	2,  ECU_OPTIONS,		ECU_D_SETTING,				slider_D_term_update,0},	//23 ECU D slider
-	{menu_604, 4,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		ECU_I_SETTING,				slider_I_term_update,0},	//24 ECU I slider
+	{menu_601, 4,	21,	22,	8,	21, 21,	0,  ECU_OPTIONS,		TORQUE_SETTING,				adjustParameters,0},		//21 Max torque slider
+	{menu_602, 4,	21,	23,	8,	22, 22,	1,  ECU_OPTIONS,		KERS_SETTING,				adjustParameters,0},		//22 KERS
+	{menu_603, 4,	22,	24,	8,	23, 23,	2,  ECU_OPTIONS,		TRACTION_CONTROL_SETTING,	adjustParameters,0},		//23 TRACTION CONTROL ON / OFF
+	{menu_604, 4,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		NO_SETTING,					0,0},						//24 EMPTY
 	
 	{menu_700, 3,	25,	26,	11,	25, 25,	0,  DL_OPTIONS,			NO_SETTING,				0,startLoggingCommand},			//25 Create file
 	{menu_701, 3,	25,	27,	11,	26, 26,	1,  DL_OPTIONS,			NO_SETTING,				0,closeFileCommand},			//26 Start logging
@@ -237,6 +238,17 @@ const MenuEntry menu[] = {
 #define NUM_MENUS_UPDATE 2 // Number of menus to specifiy a certain update frequency for
 #define RTDS_DURATION_MS 3000
 #define WATCHDOG_RESET_COMMAND  ( (0xA5 << 24) | (1<<0)) // Command to write to WDT CR register to reset the counter
+
+
+#define P_TERM			0x01
+#define I_TERM			0x02
+#define D_TERM			0x03
+#define MAX_MIN_VALUE	0x04
+#define MAX_DECREASE	0x05
+#define DESIRED_SLIP	0x06
+#define MAX_INTEGRAL	0x07
+#define MAX_TORQUE		0x08
+#define KERS_ADJUST		0x09
 //***********************************************************************************
 //-------------------------SEMAPHORE, TIMERS AND QUEUES----------------------------//
 //***********************************************************************************
@@ -298,24 +310,17 @@ DeviceState device_state = {
 	.STEER_POS	= DEAD,
 	.IMD		= DEAD
 };
-typedef enum {STEP_POINT_ONE = 0, STEP_ONE = 1, STEP_TEN=10}EStepSize ;
+typedef enum {STEP_ONE = 1, STEP_TEN=10} EStepSize ;
 static struct StepSizeForVariables {
-	EStepSize p_term;
-	EStepSize i_term;
-	EStepSize d_term;
+	EStepSize kers;
 	EStepSize torque;
 	};
 static struct StepSizeForVariables StepSizeVar = {
-	.p_term = STEP_ONE,
-	.i_term = STEP_ONE,
-	.d_term = STEP_ONE,
+	.kers = STEP_ONE,
 	.torque = STEP_ONE
 	};
 	
-static struct presetParameterStruct presetParameters = {
-	.i_term = 0,
-	.p_term = 0
-	};
+static struct presetParameterStruct presetParameters;
 
 // Identify which preset that has been chosen
 EAdjustmentParameter presetSetting;
@@ -534,12 +539,14 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 			}
 		break;
 		case PRESET_PROCEDURE_SEND_P_TERM:
-			EcuPTerm.data.f[0] = presetParameters.p_term;
-			can_freeRTOSSendMessage(CAN0, EcuPTerm);
+			EcuParametersFromFile.data.u8[0] = P_TERM;
+			EcuParametersFromFile.data.f[1] = presetParameters.p_term;
+			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
 			presetProcedureState = WAIT_P_TERM;
 		break;
+		
 		case WAIT_P_TERM:
 			if (conf_msgs->ECU_parameter_confirmed == true) {
 				conf_msgs->ECU_parameter_confirmed = false;
@@ -549,13 +556,16 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 				presetProcedureState = PRESET_PROCEDURE_FAILED;
 			}
 		break;
+		
 		case PRESET_PROCEDURE_SEND_I_TERM:
-			EcuITerm.data.f[0] = presetParameters.i_term;
-			can_freeRTOSSendMessage(CAN0, EcuITerm);
+			EcuParametersFromFile.data.u8[0] = I_TERM;
+			EcuParametersFromFile.data.f[1] = presetParameters.i_term;
+			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
 			presetProcedureState = WAIT_I_TERM;
 		break;
+		
 		case WAIT_I_TERM:
 			if (conf_msgs->ECU_parameter_confirmed == true) {
 				conf_msgs->ECU_parameter_confirmed = false;
@@ -566,6 +576,97 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 			}
 		break;
 		
+		case PRESET_PROCEDURE_SEND_D_TERM:
+			EcuParametersFromFile.data.u8[0] = D_TERM;
+			EcuParametersFromFile.data.f[1] = presetParameters.d_term;
+			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			xTimerReset(parameterConfTimer,0);
+			parameter_confirmation_timed_out = false;
+			presetProcedureState = WAIT_I_TERM;
+		break;
+		
+		case WAIT_D_TERM:
+			if (conf_msgs->ECU_parameter_confirmed == true) {
+				conf_msgs->ECU_parameter_confirmed = false;
+				presetProcedureState = PRESET_PROCEDURE_FINISHED;
+			}
+			else if (parameter_confirmation_timed_out == true) {
+				presetProcedureState = PRESET_PROCEDURE_FAILED;
+			}
+		break;
+		
+		case PRESET_PROCEDURE_SEND_MAX_MIN_TERM:
+			EcuParametersFromFile.data.u8[0] = MAX_MIN_VALUE;
+			EcuParametersFromFile.data.f[1] = presetParameters.max_min_term;
+			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			xTimerReset(parameterConfTimer,0);
+			parameter_confirmation_timed_out = false;
+			presetProcedureState = WAIT_I_TERM;
+		break;
+		
+		case WAIT_MAX_MIN_TERM:
+		if (conf_msgs->ECU_parameter_confirmed == true) {
+			conf_msgs->ECU_parameter_confirmed = false;
+			presetProcedureState = PRESET_PROCEDURE_FINISHED;
+		}
+		else if (parameter_confirmation_timed_out == true) {
+			presetProcedureState = PRESET_PROCEDURE_FAILED;
+		}
+		break;
+		
+		case PRESET_PROCEDURE_SEND_MAX_DECREASE_TERM:
+			EcuParametersFromFile.data.u8[0] = MAX_DECREASE;
+			EcuParametersFromFile.data.f[1] = presetParameters.max_decrease_term;
+			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			xTimerReset(parameterConfTimer,0);
+			parameter_confirmation_timed_out = false;
+			presetProcedureState = WAIT_I_TERM;
+		break;
+		case WAIT_MAX_DECREASE_TERM:
+			if (conf_msgs->ECU_parameter_confirmed == true) {
+				conf_msgs->ECU_parameter_confirmed = false;
+				presetProcedureState = PRESET_PROCEDURE_FINISHED;
+			}
+			else if (parameter_confirmation_timed_out == true) {
+				presetProcedureState = PRESET_PROCEDURE_FAILED;
+			}
+		break;
+		case PRESET_PROCEDURE_SEND_DESIRED_SLIP_TERM:
+			EcuParametersFromFile.data.u8[0] = DESIRED_SLIP;
+			EcuParametersFromFile.data.f[1] = presetParameters.desired_slip_term;
+			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			xTimerReset(parameterConfTimer,0);
+			parameter_confirmation_timed_out = false;
+			presetProcedureState = WAIT_I_TERM;
+		break;
+		case WAIT_DESIRED_SLIP_TERM:
+			if (conf_msgs->ECU_parameter_confirmed == true) {
+				conf_msgs->ECU_parameter_confirmed = false;
+				presetProcedureState = PRESET_PROCEDURE_FINISHED;
+			}
+			else if (parameter_confirmation_timed_out == true) {
+				presetProcedureState = PRESET_PROCEDURE_FAILED;
+			}
+		break;
+		
+		case PRESET_PROCEDURE_SEND_MAX_INTEGRAL_TERM:
+			EcuParametersFromFile.data.u8[0] = MAX_INTEGRAL;
+			EcuParametersFromFile.data.u32[1] = presetParameters.max_integral_term;
+			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			xTimerReset(parameterConfTimer,0);
+			parameter_confirmation_timed_out = false;
+			presetProcedureState = WAIT_I_TERM;
+		break;
+		
+		case WAIT_MAX_INTEGRAL_TERM:
+			if (conf_msgs->ECU_parameter_confirmed == true) {
+				conf_msgs->ECU_parameter_confirmed = false;
+				presetProcedureState = PRESET_PROCEDURE_FINISHED;
+			}
+			else if (parameter_confirmation_timed_out == true) {
+				presetProcedureState = PRESET_PROCEDURE_FAILED;
+			}
+		break;
 		case PRESET_PROCEDURE_FINISHED:
 			DrawPresetProcedure();
 			if (ackPressed == true) {
@@ -642,7 +743,7 @@ static void changeCarState(ConfirmationMsgs *conf_msgs, StatusMsg *status, Senso
 				car_state = TRACTIVE_SYSTEM_OFF;
 			}
 			else if (conf_msgs->drive_disabled_confirmed == true) {
-				can_sendMessage(CAN0,EcuParameters);
+				can_sendMessage(CAN0,EcuParametersFromFile);
 				car_state = TRACTIVE_SYSTEM_ON;
 				conf_msgs->drive_disabled_confirmed = false;
 			}
@@ -789,25 +890,13 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 			case ECU_OPTIONS:
 				switch (menu[selected].current_setting) {
 					case TORQUE_SETTING:
-						//EcuParameters.data = var->
-						EcuParameters.data.u8[0] = CAN_SET_TORQUE;
-						EcuParameters.dataLength = 2;
+						//EcuParametersFromFile.data = var->
+						EcuParametersFromFile.data.u8[0] = CAN_SET_TORQUE;
+						EcuParametersFromFile.dataLength = 2;
 						if ( (var->torque <= 100) && (var->torque >= 0) ) {
-							EcuParameters.data.u8[1] = var->torque;
-							can_freeRTOSSendMessage(CAN0,EcuParameters);
+							EcuParametersFromFile.data.u8[1] = var->torque;
+							can_freeRTOSSendMessage(CAN0,EcuParametersFromFile);
 						}
-					break;
-					case ECU_P_SETTING:
-						EcuPTerm.data.f[0] = var->P_term;
-						can_freeRTOSSendMessage(CAN0,EcuPTerm);
-					break;
-					
-					case ECU_D_SETTING:
-					
-					break;				
-					case ECU_I_SETTING:
-						EcuITerm.data.f[0] = var->I_term;
-						can_freeRTOSSendMessage(CAN0,EcuITerm);
 					break;
 					
 				}
@@ -846,52 +935,21 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 		switch (menu[selected].current_setting) {
 			case TORQUE_SETTING:
 				switch (StepSizeVar.torque){
-					case STEP_POINT_ONE:
-					StepSizeVar.torque = STEP_ONE;
-					break;
 					case ONE:
 					StepSizeVar.torque = STEP_TEN;
 					break;
 					case STEP_TEN:
-					StepSizeVar.torque = STEP_POINT_ONE;
-					break;
-				}
-			case ECU_P_SETTING:
-				switch (StepSizeVar.p_term) {
-					case STEP_POINT_ONE:
-						StepSizeVar.p_term = STEP_ONE;
-						break;
-					case ONE:
-						StepSizeVar.p_term = STEP_TEN;
-						break;
-					case STEP_TEN:
-						StepSizeVar.p_term = STEP_POINT_ONE;
-						break;
-				}
-			break;
-			case ECU_D_SETTING:
-				switch (StepSizeVar.d_term) {
-					case STEP_POINT_ONE:
-					StepSizeVar.d_term = STEP_ONE;
-					break;
-					case ONE:
-					StepSizeVar.d_term = STEP_TEN;
-					break;
-					case STEP_TEN:
-					StepSizeVar.d_term = STEP_POINT_ONE;
+					StepSizeVar.torque = STEP_ONE;
 					break;
 				}
 			break;
-			case ECU_I_SETTING:
-				switch (StepSizeVar.i_term) {
-					case STEP_POINT_ONE:
-					StepSizeVar.i_term = STEP_ONE;
-					break;
+			case KERS_SETTING:
+				switch (StepSizeVar.torque){
 					case ONE:
-					StepSizeVar.i_term = STEP_TEN;
+					StepSizeVar.torque = STEP_TEN;
 					break;
 					case STEP_TEN:
-					StepSizeVar.i_term = STEP_POINT_ONE;
+					StepSizeVar.torque = STEP_ONE;
 					break;
 				}
 			break;
@@ -986,7 +1044,7 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 			switch (menu[selected].current_menu) {
 				case ECU_OPTIONS:
 				parameter_confirmation_timed_out = true;
-				setVariableBasedOnConfirmation(var);
+				setParameterBasedOnConfirmation(var);
 				break;
 				case SNAKE_GAME:
 				if (snakeGameState != SNAKE_OFF) {
@@ -1001,7 +1059,7 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 			switch (menu[selected].current_menu) {
 				case ECU_OPTIONS:
 				parameter_confirmation_timed_out = true;
-				setVariableBasedOnConfirmation(var);
+				setParameterBasedOnConfirmation(var);
 				break;
 				case SNAKE_GAME:
 				if (snakeGameState != SNAKE_OFF) {
@@ -1148,7 +1206,7 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 		switch (ReceiveMsg.messageID) {
 			case 11:
 				//Temporary testing: Variable confirmation ID
-				setVariableBasedOnConfirmation(var);
+				setParameterBasedOnConfirmation(var);
 				parameter_confirmation_timed_out = false; // Reset the global status flag
 			break;
 			case ID_TRQ_CONF_CH0:
@@ -1729,33 +1787,8 @@ static void init_error_struct(ModuleError *error) {
 static void init_variable_struct(Variables *var) {
 	var->min_torque = 0;
 	var->torque = 50;
-	var->prev_confirmed_torque = 50;
+	var->confirmed_torque = 50;
 	var->max_torque = 100;
-	
-	var->min_P_term = 0;
-	var->P_term = 10;
-	var->prev_confirmed_P_term = 10;
-	var->max_P_term = 11;
-	
-	var->min_D_term = 0;
-	var->D_term = 5;
-	var->prev_confirmed_D_term = 5;
-	var->max_D_term = 13;
-	
-	var->min_I_term = 0;
-	var->I_term = 1;
-	var->prev_confirmed_I_term = 1;
-	var->max_I_term = 14;
-	
-	var->min_T_term = 0;
-	var->T_term = 2;
-	var->prev_confirmed_T_term = 2;
-	var->max_T_term = 15;
-	
-	var->min_R_term = 0;
-	var->R_term = 6;
-	var->prev_confirmed_R_term = 6;
-	var->max_R_term = 16;
 }
 static void clearAllButtons() {
 	btn.unhandledButtonAction = false;
@@ -1778,86 +1811,17 @@ static bool checkDeviceStatus(DeviceState *devices) {
 	}
 }
 
-static void setVariableBasedOnConfirmation(Variables *var) {
+static void setParameterBasedOnConfirmation(Variables *var) {
 	
 	switch (menu[selected].current_setting) {
 		case TORQUE_SETTING:
 			if (parameter_confirmation_timed_out == true) {
-				var->torque = var->prev_confirmed_torque;
+				var->torque = var->confirmed_torque;
 			}
 			else {
-				var->prev_confirmed_torque = var->torque;
+				var->confirmed_torque = var->torque;
 			}
-		break;
-		case ECU_P_SETTING:
-			if (parameter_confirmation_timed_out == true) {
-				var->P_term = var->prev_confirmed_P_term;
-			}
-			else {
-				var->prev_confirmed_P_term = var->P_term;
-			}
-		break;
-		
-		case ECU_I_SETTING:
-			if (parameter_confirmation_timed_out == true) {
-				var->I_term = var->prev_confirmed_I_term;
-			}
-			else {
-				var->prev_confirmed_I_term = var->I_term;
-			}
-		break;
-		
-	}
-	if (menu[selected].current_setting == TORQUE_SETTING) {
-		if (parameter_confirmation_timed_out == true) {
-			var->torque = var->prev_confirmed_torque;
-		}
-		else {
-			var->prev_confirmed_torque = var->torque;
-		}
-	}
-	else if (menu[selected].current_setting == ECU_P_SETTING) {
-		if (parameter_confirmation_timed_out == true) {
-			var->P_term = var->prev_confirmed_P_term;
-		}
-		else {
-			var->prev_confirmed_P_term = var->P_term;
-		}
-		
-	}
-	else if (menu[selected].current_setting == ECU_D_SETTING) {
-		if (parameter_confirmation_timed_out == true) {
-			var->D_term = var->prev_confirmed_D_term;
-		}
-		else {
-			var->prev_confirmed_D_term = var->D_term;
-		}
-		
-	}
-	else if (menu[selected].current_setting == ECU_I_SETTING) {
-		if (parameter_confirmation_timed_out == true) {
-			var->I_term = var->prev_confirmed_I_term;
-		}
-		else {
-			var->prev_confirmed_I_term = var->I_term;
-		}
-		
-	}
-	else if (menu[selected].current_setting == ECU_LC_RT_SETTING) {
-		if (parameter_confirmation_timed_out == true) {
-			var->R_term = var->prev_confirmed_R_term;
-		}
-		else {
-			var->prev_confirmed_R_term = var->R_term;
-		}
-	}
-	else if (menu[selected].current_setting == ECU_LC_INIT_TORQ_SETTING) {
-		if (parameter_confirmation_timed_out == true) {
-			var->T_term = var->prev_confirmed_T_term;
-		}
-		else {
-			var->prev_confirmed_T_term = var->T_term;
-		}
+		break;	
 	}
 }
 
@@ -2360,19 +2324,8 @@ static void DrawAdjustmentMenu() {
 
 static void DrawECUAdjustmentScreen(Variables *var) {
 	cmd(CMD_DLSTART);
-	//cmd(CLEAR_COLOR_RGB(50,50,50));
 	cmd(CLEAR(1, 1, 1)); // clear screen
-	/*Draw 5 variable names, 5 sliders, 5 min values, 5 max values and current value at center of each slider in big font.
-	Also draw a frame around the current selected variable. */
-// 	cmd(BEGIN(LINE_STRIP));
-// 	cmd(COLOR_RGB(250,250,0));
-// 	cmd(VERTEX2F(245*16, 0));
-// 	cmd(VERTEX2F(480*16, 0));
-// 	cmd(VERTEX2F(480*16, 272*16));
-// 	cmd(VERTEX2F(245*16,272*16));
-// 	cmd(VERTEX2F(245*16,0));
 
-//progress bar side 188
 	uint8_t menu_pos = ECU_SETTINGS_MENU_POS;
 	uint8_t variable_pos = ECU_SETTINGS_VARIABLES_POS;
 	uint8_t end_menu_pos = menu_pos + menu[ECU_SETTINGS_MENU_POS].num_menupoints - 1;
@@ -2382,7 +2335,7 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 	uint32_t x_menu_position = 25;
 	uint32_t vertical_menu_spacing = 55;
 	uint8_t font_size = 27;
-	//cmd(COLOR_RGB())
+
 	cmd_text(240,20,29,OPT_CENTER,"ECU OPTIONS");
 	for (menu_pos; menu_pos <= end_menu_pos ; menu_pos ++) {
 		if (selected == menu_pos) {
@@ -2406,11 +2359,6 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 	uint8_t y_num_adj = 10;
 	uint8_t num_font_size = 27;
 	
-	uint16_t range_P_term = var->max_P_term - var->min_P_term;
-	uint16_t range_I_term = var->max_I_term - var->min_I_term;
-	uint16_t range_D_term = var->max_D_term - var->min_D_term;
-	uint16_t range_T_term = var->max_T_term - var->min_T_term;
-	uint16_t range_R_term = var->max_R_term - var->min_R_term;
 	//Knob : fgcolor
 	//Left of knob : COLOR_RGB
 	//Right of knob : bgcolor
@@ -3079,79 +3027,9 @@ static void adjustParameters(ERotary_direction dir, Variables *var) {
 				var->torque -= StepSizeVar.torque;
 			}
 		break;
-		case ECU_P_SETTING:
-			if ( (dir == CW) && ( (var->P_term + StepSizeVar.p_term) <= var->max_P_term )  ) {
-				var->P_term += StepSizeVar.p_term;
-			}
-			else if ( (dir == CCW) && ( (var->P_term - StepSizeVar.p_term)  >= var->min_P_term) ) {
-				var->P_term -= StepSizeVar.p_term;
-			}
-		break;
-		case ECU_I_SETTING:
-			if ( (dir == CW) && ( (var->I_term + StepSizeVar.i_term) <= var->max_I_term )  ) {
-				var->I_term += StepSizeVar.i_term;
-			}
-			else if ( (dir == CCW) && ( (var->I_term - StepSizeVar.i_term)  >= var->min_I_term) ) {
-				var->I_term -= StepSizeVar.i_term;
-			}
-		break;
 	}
 }
 
-static void slider_torque_update(ERotary_direction dir, Variables *var) {
-	uint8_t step = 25;
-	if (dir == CW && var->torque <=(var->max_torque - step)) {
-		var->torque += step;
-	}
-	else if (dir == CCW && var->torque >=(var->min_torque+step)) {
-		var->torque -= step;
-	}
-}
-static void slider_P_term_update(ERotary_direction dir, Variables *var) {
-	uint8_t step = 1;
-	if (dir == CW && var->P_term <=(var->max_P_term - step)) {
-		var->P_term += step;
-	}
-	else if (dir == CCW && var->P_term >=(var->min_P_term+step)) {
-		var->P_term -= step;
-	}
-}
-static void slider_I_term_update(ERotary_direction dir, Variables *var) {
-	uint8_t step = 1;
-	if (dir == CW && var->I_term <=(var->max_I_term - step)) {
-		var->I_term += step;
-	}
-	else if (dir == CCW && var->I_term >=(var->min_I_term+step)) {
-		var->I_term -= step;
-	}
-}
-static void slider_D_term_update(ERotary_direction dir, Variables *var) {
-	uint8_t step = 1;
-	if (dir == CW && var->D_term <=(var->max_D_term - step)) {
-		var->D_term += step;
-	}
-	else if (dir == CCW && var->D_term >=(var->min_D_term+step)) {
-		var->D_term -= step;
-	}
-}
-static void slider_R_term_update(ERotary_direction dir, Variables *var) {
-	uint8_t step = 1;
-	if (dir == CW && var->R_term <=(var->max_R_term - step)) {
-		var->R_term += step;
-	}
-	else if (dir == CCW && var->R_term >=(var->min_R_term+step)) {
-		var->R_term -= step;
-	}
-}
-static void slider_T_term_update(ERotary_direction dir, Variables *var) {
-	uint8_t step = 1;
-	if (dir == CW && var->T_term <=(var->max_T_term - step)) {
-		var->T_term += step;
-	}
-	else if (dir == CCW && var->T_term >=(var->min_T_term+step)) {
-		var->T_term -= step;
-	}
-}
 
 
 //***********************************************************************************

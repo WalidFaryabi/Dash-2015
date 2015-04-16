@@ -24,6 +24,11 @@ extern char preset_file_name[LEN_PRESET_FILENAME];
 struct presetParameterStruct {
 	float p_term;
 	float i_term;
+	float d_term;
+	float max_min_term;
+	float max_decrease_term;
+	float desired_slip_term;
+	uint32_t max_integral_term;
 };
 
 

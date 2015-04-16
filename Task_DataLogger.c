@@ -15,11 +15,7 @@
 
 static void getPresetParametersFromFile(char file_name[]);
 
-static struct presetParameterStruct presetParametersToMenuTask = {
-	.p_term = 0,
-	.i_term = 0
-	};
-
+static struct presetParameterStruct presetParametersToMenuTask;
 Ctrl_status status;
 FRESULT res, filePresent;
 FATFS fs;
@@ -268,14 +264,20 @@ static void getPresetParametersFromFile(char file_name[]) {
 	uint32_t decimal_part;
 	char integer_part_s[10];
 	char decimal_part_s[10];
+	char number[20];
+	char parameter_name[20];
+	char * ptr_to_token;
+	char * ptr_to_token_parameter_name;
 	
 	char line[50];
 	res = f_open(&file_object, (char const *)file_name, FA_OPEN_EXISTING | FA_READ);
 	if (res == FR_OK) {
 		while ( f_gets(line, sizeof line, &file_object) ) {
-			char number[20];
-			strcpy(number, line + 2);
-			char * ptr_to_token;
+			
+			ptr_to_token_parameter_name = strtok(line,":");
+			strcpy(parameter_name,ptr_to_token_parameter_name);
+			
+			strcpy(number, line + strlen(parameter_name));
 			// Get the integer part
 			ptr_to_token = strtok(number,".");
 			strcpy(integer_part_s,ptr_to_token);
@@ -286,21 +288,33 @@ static void getPresetParametersFromFile(char file_name[]) {
 			decimal_part = atoi(decimal_part_s);
 			float f = integer_part + (float) decimal_part/100;
 			switch (line[0]) {
-				case 'P':
+				case '1':
 					presetParametersToMenuTask.p_term = f;
 				break;
-				case 'I':
+				case '2':
 					presetParametersToMenuTask.i_term = f;
 				break;
+				case '3':
+					presetParametersToMenuTask.d_term = f;
+				break;
+				case '4':
+					presetParametersToMenuTask.max_min_term = f;
+				break;
+				case '5':
+					presetParametersToMenuTask.max_decrease_term = f;
+				break;
+				case '6':
+					presetParametersToMenuTask.desired_slip_term = f;
+				break;
+				case '7':
+					presetParametersToMenuTask.max_integral_term = integer_part;
+				break;	
 			}
 		}	
 		// Close file
 		f_close(&file_object);
 		// Filled the preset struct.. Send it to task menu
 		xQueueSendToBack(xPresetQueue,&presetParametersToMenuTask,0);
-		//volatile uint32_t bytesremaining;
-		//bytesremaining = xPortGetFreeHeapSize();
-		uint8_t h = 0;
 	}
 }
 

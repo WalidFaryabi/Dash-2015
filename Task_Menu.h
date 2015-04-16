@@ -14,8 +14,7 @@ typedef enum {MAIN_SCREEN,SYSTEM_MONITOR,TEMP_VOLT,MAIN_MENU,KERS_OPTION,DEVICE_
 			  SPEED,TRQ_CALIB,PERSISTENT_MSG,ECU_OPTIONS,LC_HANDLER,ERROR_HANDLER,SNAKE_GAME,
 			  STEER_CALIB,DL_OPTIONS,LOCKED_SEL,PRESET_SEL,PRESET_PROCEDURE} EMenuName;
 			  
-typedef enum {NO_SETTING,TORQUE_SETTING,KERS_SETTING, ECU_P_SETTING, ECU_D_SETTING, 
-			  ECU_I_SETTING, ECU_LC_RT_SETTING, ECU_LC_INIT_TORQ_SETTING,DL_PREALLOCATE,PRESET_1_SETTING,PRESET_2_SETTING,
+typedef enum {NO_SETTING,TORQUE_SETTING,KERS_SETTING, TRACTION_CONTROL_SETTING, DL_PREALLOCATE,PRESET_1_SETTING,PRESET_2_SETTING,
 			  PRESET_3_SETTING,PRESET_4_SETTING,PRESET_5_SETTING,PRESET_6_SETTING,PRESET_7_SETTING,PRESET_8_SETTING} EAdjustmentParameter;
 			  
 typedef enum {NAVIGATION,PUSH_ACK,ROTARY,ROT_ACK,START,LAUNCH_CONTROL,NONE_BTN} EButtonType;
@@ -39,6 +38,9 @@ typedef enum {STEER_CONF_LEFT,STEER_CONF_RIGHT, STEER_CONF_FAILED, STEER_CONF_DE
 	
 typedef enum {PRESET_PROCEDURE_OFF,PRESET_PROCEDURE_INIT, PRESET_PROCEDURE_WAITING, 
 			  PRESET_PROCEDURE_SEND_P_TERM, WAIT_P_TERM, PRESET_PROCEDURE_SEND_I_TERM, WAIT_I_TERM,
+			  PRESET_PROCEDURE_SEND_D_TERM, WAIT_D_TERM, PRESET_PROCEDURE_SEND_MAX_MIN_TERM, WAIT_MAX_MIN_TERM,
+			  PRESET_PROCEDURE_SEND_MAX_DECREASE_TERM, WAIT_MAX_DECREASE_TERM,PRESET_PROCEDURE_SEND_DESIRED_SLIP_TERM, 
+			  WAIT_DESIRED_SLIP_TERM, PRESET_PROCEDURE_SEND_MAX_INTEGRAL_TERM, WAIT_MAX_INTEGRAL_TERM,
 			  PRESET_PROCEDURE_FINISHED,PRESET_PROCEDURE_FAILED} EPresetStates;
 	
 typedef struct ButtonsOnDashboard {
@@ -99,33 +101,10 @@ typedef struct StatusMessagesCan {
 typedef struct VariableValues { // Values of adjustable variables
 	uint32_t min_torque;
 	uint32_t torque;
-	uint32_t prev_confirmed_torque;
+	uint32_t confirmed_torque;
 	uint32_t max_torque;
 	
-	uint32_t min_P_term;
-	uint32_t P_term;
-	uint32_t prev_confirmed_P_term;
-	uint32_t max_P_term;
 	
-	uint32_t min_I_term;
-	uint32_t I_term;
-	uint32_t prev_confirmed_I_term;
-	uint32_t max_I_term;
-	
-	uint32_t min_D_term;
-	uint32_t D_term;
-	uint32_t prev_confirmed_D_term;
-	uint32_t max_D_term;
-	
-	uint32_t min_R_term;
-	uint32_t R_term;
-	uint32_t prev_confirmed_R_term;
-	uint32_t max_R_term;
-	
-	uint32_t min_T_term;
-	uint32_t T_term;
-	uint32_t prev_confirmed_T_term;
-	uint32_t max_T_term;
 	/* If acknowledge is pressed while adjusting a parameter, a timer is started, if a confirmation msg is received 
 	before it times out the parameter of the current parameter adjustment menu is confirmed. This is handled in
 	getDashMessages function. If the user presses left the previous confirmed parameter will be displayed again*/
