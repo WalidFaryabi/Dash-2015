@@ -98,18 +98,29 @@ typedef struct StatusMessagesCan {
 	bool shut_down_circuit_closed;
 	} StatusMsg;
 
-typedef struct VariableValues { // Values of adjustable variables
+typedef struct ParameterValues { // Values of adjustable variables
 	uint32_t min_torque;
 	uint32_t torque;
 	uint32_t confirmed_torque;
 	uint32_t max_torque;
+	
+	uint16_t min_kers_value;
+	uint16_t kers_value;
+	uint16_t confirmed_kers_value;
+	uint16_t max_kers_value;
+	
+	uint8_t min_traction_control_value;
+	uint8_t traction_control_value;
+	uint8_t confirmed_traction_control_value;
+	uint8_t max_traction_control_value;
+	
 	
 	
 	/* If acknowledge is pressed while adjusting a parameter, a timer is started, if a confirmation msg is received 
 	before it times out the parameter of the current parameter adjustment menu is confirmed. This is handled in
 	getDashMessages function. If the user presses left the previous confirmed parameter will be displayed again*/
 	
-	} Variables;
+	} ParameterValue;
 	
 typedef struct SensorValuesReceivedOverCan {
 	uint16_t brake_pressure_fr;
@@ -170,7 +181,7 @@ typedef struct MenuStructure {
 	uint8_t position;
 	EMenuName current_menu;
 	EAdjustmentParameter current_setting;
-	void (*rotaryActionFunc) (ERotary_direction rot, Variables *var);
+	void (*rotaryActionFunc) (ERotary_direction rot, ParameterValue *parameter);
 	void (*dataloggerFunc)(void);
 	} MenuEntry;
 

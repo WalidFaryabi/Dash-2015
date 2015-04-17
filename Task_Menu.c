@@ -26,12 +26,12 @@ typedef enum {PEDAL_IN, PEDAL_OUT} EPedalPosition;
 //**********************************************************************************//
 static void changeCarState(ConfirmationMsgs *conf_msgs, StatusMsg *status, SensorRealValue *sensor_real);
 static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorValues *sensor_values,StatusMsg *status,
-ConfirmationMsgs *conf_msgs,DeviceState *device_state, Variables *var, SensorRealValue *sensor_real_value);
+ConfirmationMsgs *conf_msgs,DeviceState *device_state, ParameterValue *parameter, SensorRealValue *sensor_real_value);
 static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real,DeviceState *device_state,
-Variables *var, ModuleError *error,ConfirmationMsgs *conf_msgs);
-static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError *error, SensorRealValue *sensor_real);
+ParameterValue *parameter, ModuleError *error,ConfirmationMsgs *conf_msgs);
+static void NavigateMenu(DeviceState *device_state, ParameterValue *parameter, ModuleError *error, SensorRealValue *sensor_real);
 
-static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleError *error, SensorValues *sensor_values,StatusMsg *status,SensorRealValue *sensor_real);
+static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *conf_msg, ModuleError *error, SensorValues *sensor_values,StatusMsg *status,SensorRealValue *sensor_real);
 
 static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,DeviceState *devices);
 //***********************************************************************************
@@ -39,7 +39,7 @@ static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,De
 //***********************************************************************************
 static void can_freeRTOSSendMessage(Can *can,struct CanMessage message);
 
-static void setParameterBasedOnConfirmation(Variables *var);
+static void setParameterBasedOnConfirmation(ParameterValue *parameter);
 static void clearAllButtons();
 
 static bool checkForError(ModuleError *error);
@@ -60,16 +60,16 @@ static void init_sensor_value_struct(SensorValues *sensor_values);
 static void init_status_struct(StatusMsg *status);
 static void init_conf_msgs_struct(ConfirmationMsgs *conf_msgs);
 static void init_error_struct(ModuleError *error);
-static void init_variable_struct(Variables *var);
+static void init_parameter_struct(ParameterValue *parameter);
 //--------------FUNCTIONS TO ADJUST VARIABLES---------------//
-static void adjustParameters(ERotary_direction dir, Variables *var);
+static void adjustParameters(ERotary_direction dir, ParameterValue *parameter);
 //Adjustparameters will replace these functions
-static void slider_torque_update(ERotary_direction dir, Variables *var);
-static void slider_P_term_update(ERotary_direction dir, Variables *var);
-static void slider_I_term_update(ERotary_direction dir, Variables *var);
-static void slider_D_term_update(ERotary_direction dir, Variables *var);
-static void slider_R_term_update(ERotary_direction dir, Variables *var);
-static void slider_T_term_update(ERotary_direction dir, Variables *var);
+static void slider_torque_update(ERotary_direction dir, ParameterValue *parameter);
+static void slider_P_term_update(ERotary_direction dir, ParameterValue *parameter);
+static void slider_I_term_update(ERotary_direction dir, ParameterValue *parameter);
+static void slider_D_term_update(ERotary_direction dir, ParameterValue *parameter);
+static void slider_R_term_update(ERotary_direction dir, ParameterValue *parameter);
+static void slider_T_term_update(ERotary_direction dir, ParameterValue *parameter);
 
 //-------------------TIMERS------------------//
 static void vRTDSCallback(TimerHandle_t xTimer);
@@ -99,7 +99,7 @@ static void DrawTempAndVoltScreen(SensorRealValue *tempvolt);
 
 static void DrawMainMenu();
 static void DrawAdjustmentMenu();
-static void DrawECUAdjustmentScreen(Variables *var);
+static void DrawECUAdjustmentScreen(ParameterValue *parameter);
 static void DrawDeviceStatusMenu(DeviceState *device_state);
 
 static void DrawTorqueCalibrationScreen(ConfirmationMsgs *conf_msg);
@@ -193,10 +193,11 @@ const MenuEntry menu[] = {
 	{"SteerCal",1,	19,	19,	19,	19,  19, 0, STEER_CALIB,		NO_SETTING,					0,0},						//19 Steer calib
 	{menu_500, 1,	20,	20,	20,	20,	 20, 0, TRQ_CALIB,			NO_SETTING,					0,0},						//20 Torque calibration screen
 		
-	{menu_601, 4,	21,	22,	8,	21, 21,	0,  ECU_OPTIONS,		TORQUE_SETTING,				adjustParameters,0},		//21 Max torque slider
-	{menu_602, 4,	21,	23,	8,	22, 22,	1,  ECU_OPTIONS,		KERS_SETTING,				adjustParameters,0},		//22 KERS
-	{menu_603, 4,	22,	24,	8,	23, 23,	2,  ECU_OPTIONS,		TRACTION_CONTROL_SETTING,	adjustParameters,0},		//23 TRACTION CONTROL ON / OFF
-	{menu_604, 4,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		NO_SETTING,					0,0},						//24 EMPTY
+	{menu_601, 3,	21,	22,	8,	21, 21,	0,  ECU_OPTIONS,		TORQUE_SETTING,				adjustParameters,0},		//21 Max torque slider
+	{menu_602, 3,	21,	23,	8,	22, 22,	1,  ECU_OPTIONS,		KERS_SETTING,				adjustParameters,0},		//22 KERS
+	{menu_603, 3,	22,	23,	8,	23, 23,	2,  ECU_OPTIONS,		TRACTION_CONTROL_SETTING,	adjustParameters,0},		//23 TRACTION CONTROL ON / OFF
+	
+	{menu_604, 0,	23,	24,	8,	24, 24,	3,  ECU_OPTIONS,		NO_SETTING,					0,0},						//24 EMPTY
 	
 	{menu_700, 3,	25,	26,	11,	25, 25,	0,  DL_OPTIONS,			NO_SETTING,				0,startLoggingCommand},			//25 Create file
 	{menu_701, 3,	25,	27,	11,	26, 26,	1,  DL_OPTIONS,			NO_SETTING,				0,closeFileCommand},			//26 Start logging
@@ -358,14 +359,14 @@ void dashTask() {
 	StatusMsg			status;
 	ConfirmationMsgs	conf_msgs;
 	ModuleError			error;
-	Variables			var;
+	ParameterValue			parameter;
 
 	init_sensorRealValue_struct(&sensor_real);
 	init_sensor_value_struct(&sensor_values);
 	init_status_struct(&status);
 	init_conf_msgs_struct(&conf_msgs);
 	init_error_struct(&error);
-	init_variable_struct(&var);
+	init_parameter_struct(&parameter);
 	//ECarState car_state = TRACTIVE_SYSTEM_OFF;
 	
 	//Start FT800 in a clean way
@@ -396,9 +397,9 @@ void dashTask() {
 		// is controlled by software timers to ensure that no processing power is wasted on spi comms.
 		WDT->WDT_CR = WATCHDOG_RESET_COMMAND; // Restart watchdog timer
 		//Get relevant CAN messages from the specified freeRTOS queue
-		getDashMessages(&var,&conf_msgs,&error,&sensor_values, &status,&sensor_real);
+		getDashMessages(&parameter,&conf_msgs,&error,&sensor_values, &status,&sensor_real);
 		xSemaphoreTake(xButtonStruct, portMAX_DELAY);
-		dashboardControlFunction(&btn,&error,&sensor_values,&status,&conf_msgs, &device_state,&var,&sensor_real);
+		dashboardControlFunction(&btn,&error,&sensor_values,&status,&conf_msgs, &device_state,&parameter,&sensor_real);
 		xSemaphoreGive(xButtonStruct);
 		//vTaskDelay(35/portTICK_RATE_MS);
 		//vTaskDelayUntil(&xLastWakeTime,150/portTICK_RATE_MS);
@@ -406,7 +407,7 @@ void dashTask() {
 }
 
 static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorValues *sensor_values, 
-	StatusMsg *status, ConfirmationMsgs *conf_msgs,DeviceState *device_state,Variables *var, SensorRealValue *sensor_real_value) {
+	StatusMsg *status, ConfirmationMsgs *conf_msgs,DeviceState *device_state,ParameterValue *parameter, SensorRealValue *sensor_real_value) {
 		
 	changeCarState(conf_msgs, status, sensor_real_value);
 	LEDHandler(sensor_real_value,error,device_state);
@@ -420,7 +421,7 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 	}
 	
 	if (btn->unhandledButtonAction) {
-		HandleButtonActions(btn,sensor_real_value, device_state, var,error,conf_msgs);
+		HandleButtonActions(btn,sensor_real_value, device_state, parameter,error,conf_msgs);
 	}
 	
 	//UPDATE SCREENS ON THE DISPLAY AND CALL MENU LOCATION DEPENDENT FUNCTIONS
@@ -428,7 +429,7 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 		case ECU_OPTIONS:
 		if ((menuUpdate.update_menu == true) ) {
 			menuUpdate.update_menu = false;
-			DrawECUAdjustmentScreen(var);
+			DrawECUAdjustmentScreen(parameter);
 		}
 		
 		break;
@@ -829,9 +830,9 @@ static void changeCarState(ConfirmationMsgs *conf_msgs, StatusMsg *status, Senso
 }
 
 static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,DeviceState *device_state, 
-						 Variables *var, ModuleError *error, ConfirmationMsgs *conf_msgs) { 
+						 ParameterValue *parameter, ModuleError *error, ConfirmationMsgs *conf_msgs) { 
 	if (btn->btn_type == NAVIGATION) {
-		NavigateMenu(device_state, var,error, sensor_real);
+		NavigateMenu(device_state, parameter,error, sensor_real);
 		
 	}
 	// If changing a variable and acknowledge button is pressed the selection will be confirmed,
@@ -890,11 +891,11 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 			case ECU_OPTIONS:
 				switch (menu[selected].current_setting) {
 					case TORQUE_SETTING:
-						//EcuParametersFromFile.data = var->
+						//EcuParametersFromFile.data = parameter->
 						EcuParametersFromFile.data.u8[0] = CAN_SET_TORQUE;
 						EcuParametersFromFile.dataLength = 2;
-						if ( (var->torque <= 100) && (var->torque >= 0) ) {
-							EcuParametersFromFile.data.u8[1] = var->torque;
+						if ( (parameter->torque <= 100) && (parameter->torque >= 0) ) {
+							EcuParametersFromFile.data.u8[1] = parameter->torque;
 							can_freeRTOSSendMessage(CAN0,EcuParametersFromFile);
 						}
 					break;
@@ -968,10 +969,10 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 		if (menu[selected].current_menu == ECU_OPTIONS){ //Add the different option names
 			if (menu[selected].rotaryActionFunc != 0) {
 				if (btn->rotary_cw == true) {
-					menu[selected].rotaryActionFunc(CW,var);
+					menu[selected].rotaryActionFunc(CW,parameter);
 				}
 				else{
-					menu[selected].rotaryActionFunc(CCW,var);
+					menu[selected].rotaryActionFunc(CCW,parameter);
 				}
 			}
 		}
@@ -1037,14 +1038,14 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 	btn->btn_type = NONE_BTN;
 }
 
-static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError *error, SensorRealValue *sensor_real) {
+static void NavigateMenu(DeviceState *device_state, ParameterValue *parameter, ModuleError *error, SensorRealValue *sensor_real) {
 	
 	switch (btn.navigation) {
 		case UP:
 			switch (menu[selected].current_menu) {
 				case ECU_OPTIONS:
 				parameter_confirmation_timed_out = true;
-				setParameterBasedOnConfirmation(var);
+				setParameterBasedOnConfirmation(parameter);
 				break;
 				case SNAKE_GAME:
 				if (snakeGameState != SNAKE_OFF) {
@@ -1059,7 +1060,7 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 			switch (menu[selected].current_menu) {
 				case ECU_OPTIONS:
 				parameter_confirmation_timed_out = true;
-				setParameterBasedOnConfirmation(var);
+				setParameterBasedOnConfirmation(parameter);
 				break;
 				case SNAKE_GAME:
 				if (snakeGameState != SNAKE_OFF) {
@@ -1108,7 +1109,7 @@ static void NavigateMenu(DeviceState *device_state, Variables *var, ModuleError 
 		DrawDeviceStatusMenu(device_state);
 		break;
 		case ECU_OPTIONS:
-		DrawECUAdjustmentScreen(var);
+		DrawECUAdjustmentScreen(parameter);
 		break;
 		case DL_OPTIONS:
 		DrawDataloggerInterface();
@@ -1190,7 +1191,7 @@ static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,De
 	}
 }
 
-static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleError *error, SensorValues *sensor_values,StatusMsg *status,SensorRealValue *sensor_real) {
+static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *conf_msg, ModuleError *error, SensorValues *sensor_values,StatusMsg *status,SensorRealValue *sensor_real) {
 	struct CanMessage txmsg = {
 		.data.u8[0] = 10,
 		.data.u8[1] = 5,
@@ -1206,7 +1207,7 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 		switch (ReceiveMsg.messageID) {
 			case 11:
 				//Temporary testing: Variable confirmation ID
-				setParameterBasedOnConfirmation(var);
+				setParameterBasedOnConfirmation(parameter);
 				parameter_confirmation_timed_out = false; // Reset the global status flag
 			break;
 			case ID_TRQ_CONF_CH0:
@@ -1286,7 +1287,8 @@ static void getDashMessages(Variables *var, ConfirmationMsgs *conf_msg, ModuleEr
 					break;
 				}
 			break;
-		
+			
+			case ID
 			
 			case ID_BMS_MAX_MIN_VALUES:
 				sensor_real->max_cell_voltage_lsb = ReceiveMsg.data.u8[0];
@@ -1784,11 +1786,19 @@ static void init_error_struct(ModuleError *error) {
 	error->bms_fault   = 0;
 	error->bms_warning = 0;
 }
-static void init_variable_struct(Variables *var) {
-	var->min_torque = 0;
-	var->torque = 50;
-	var->confirmed_torque = 50;
-	var->max_torque = 100;
+static void init_parameter_struct(ParameterValue *parameter) {
+	parameter->min_torque = 0;
+	parameter->torque = 50;
+	parameter->confirmed_torque = 50;
+	parameter->max_torque = 100;
+	
+	parameter->confirmed_kers_value = 0;
+	parameter->min_kers_value = 0;
+	parameter->max_kers_value = 20;
+	parameter->kers_value = 10;
+	
+	parameter->confirmed_traction_control_value = 1;
+	parameter->traction_control_value = 1;
 }
 static void clearAllButtons() {
 	btn.unhandledButtonAction = false;
@@ -1811,15 +1821,15 @@ static bool checkDeviceStatus(DeviceState *devices) {
 	}
 }
 
-static void setParameterBasedOnConfirmation(Variables *var) {
+static void setParameterBasedOnConfirmation(ParameterValue *parameter) {
 	
 	switch (menu[selected].current_setting) {
 		case TORQUE_SETTING:
 			if (parameter_confirmation_timed_out == true) {
-				var->torque = var->confirmed_torque;
+				parameter->torque = parameter->confirmed_torque;
 			}
 			else {
-				var->confirmed_torque = var->torque;
+				parameter->confirmed_torque = parameter->torque;
 			}
 		break;	
 	}
@@ -2322,7 +2332,7 @@ static void DrawAdjustmentMenu() {
 
 
 
-static void DrawECUAdjustmentScreen(Variables *var) {
+static void DrawECUAdjustmentScreen(ParameterValue *parameter) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 
@@ -2359,6 +2369,8 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 	uint8_t y_num_adj = 10;
 	uint8_t num_font_size = 27;
 	
+	uint8_t shape_spacing = 55;
+	
 	//Knob : fgcolor
 	//Left of knob : COLOR_RGB
 	//Right of knob : bgcolor
@@ -2385,7 +2397,7 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 				else {
 					cmd_fgcolor(0x000000); // Try black knob
 					cmd_bgcolor(color_right);
-					cmd(COLOR_RGB(255,255,255)); //
+					cmd(COLOR_RGB(255,255,255));
 					cmd(BEGIN(LINE_STRIP));
 					cmd(VERTEX2F(25*16,80*16));
 					cmd(VERTEX2F(5*16,50*16));
@@ -2394,10 +2406,75 @@ static void DrawECUAdjustmentScreen(Variables *var) {
 					cmd(VERTEX2F(25*16,80*16));
 					
 				}
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,var->torque,100);
+				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,parameter->torque,100);
 				cmd(COLOR_RGB(255,255,255));
 				//cmd(COLOR_RGB(255,0,0));
-				cmd_number(425,y_slider_position +4,num_font_size,OPT_CENTER,var->torque);
+				cmd_number(425,y_slider_position +4,num_font_size,OPT_CENTER,parameter->torque);
+			break;
+			
+			case KERS_SETTING:
+				if (selected == variable_pos) {
+					cmd(COLOR_RGB(60,80,110));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,(80+shape_spacing)*16));
+					cmd(VERTEX2F(5*16,(50+shape_spacing)*16));
+					cmd(VERTEX2F(450*16,(50+shape_spacing)*16));
+					cmd(VERTEX2F(470*16,(80+shape_spacing)*16));
+					cmd(VERTEX2F(25*16,(80+shape_spacing)*16));
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right); //
+					cmd(COLOR_RGB(255,255,0)); //
+				}
+				else {
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right);
+					cmd(COLOR_RGB(255,255,255));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,(80+shape_spacing)*16));
+					cmd(VERTEX2F(5*16,(50+shape_spacing)*16));
+					cmd(VERTEX2F(450*16,(50+shape_spacing)*16));
+					cmd(VERTEX2F(470*16,(80+shape_spacing)*16));
+					cmd(VERTEX2F(25*16,(80+shape_spacing)*16));
+				}
+				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,parameter->torque,100);
+				cmd(COLOR_RGB(255,255,255));
+				//cmd(COLOR_RGB(255,0,0));
+				cmd_number(425,y_slider_position +4,num_font_size,OPT_CENTER,parameter->torque);
+				break;			
+			break;
+			
+			case TRACTION_CONTROL_SETTING:
+			// Create square and a toggle thin
+				if (selected == variable_pos) {
+					cmd(COLOR_RGB(60,80,110));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,(80+shape_spacing*2)*16));
+					cmd(VERTEX2F(5*16,(50+shape_spacing*2)*16));
+					cmd(VERTEX2F(450*16,(50+shape_spacing*2)*16));
+					cmd(VERTEX2F(470*16,(80+shape_spacing*2)*16));
+					cmd(VERTEX2F(25*16,(80+shape_spacing*2)*16));
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right); //
+					cmd(COLOR_RGB(255,255,0)); //
+				}
+				else {
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right);
+					cmd(COLOR_RGB(255,255,255));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,(80+shape_spacing*2)*16));
+					cmd(VERTEX2F(5*16,(50+shape_spacing*2)*16));
+					cmd(VERTEX2F(450*16,(50+shape_spacing*2)*16));
+					cmd(VERTEX2F(470*16,(80+shape_spacing*2)*16));
+					cmd(VERTEX2F(25*16,(80+shape_spacing*2)*16));
+				}
+				if ( parameter->traction_control_value == 0) {
+					cmd_text(360,190,25,OPT_CENTER,"OFF");
+				}
+				else {
+					cmd_text(360,190,25,OPT_CENTER,"ON");
+				}
+			
 			break;
 		}	
 		y_slider_position += vertical_slider_spacing;
@@ -3003,35 +3080,34 @@ static void DrawPresetProcedure() {
 //--------------------------SLIDER VARIABLE UPDATE FUNCTIONS-----------------------//
 //***********************************************************************************
 
-
-// static void adjustParameter(EAdjustmentParameter parameter_type, ERotary_direction dir, Variables *var) {
-// 	switch (parameter_type) {
-// 		case TORQUE_SETTING:
-// 			if (dir == CW && var->torque <=(var->max_torque - step)) {
-// 				var->torque += step;
-// 			}
-// 			else if (dir == CCW && var->torque >=(var->min_torque+step)) {
-// 				var->torque -= step;
-// 			}
-// 		
-// 	}
-// }
-
-static void adjustParameters(ERotary_direction dir, Variables *var) {
+static void adjustParameters(ERotary_direction dir, ParameterValue *parameter) {
 	switch (menu[selected].current_setting) {
 		case TORQUE_SETTING:
-			if ( (dir == CW) && ( (var->torque + StepSizeVar.torque) <= var->max_torque )  ) {
-				var->torque += StepSizeVar.torque;
+			if ( (dir == CW) && ( (parameter->torque + StepSizeVar.torque) <= parameter->max_torque )  ) {
+				parameter->torque += StepSizeVar.torque;
 			}
-			else if ( (dir == CCW) && ( var->torque   >= (var->min_torque + StepSizeVar.torque) ) ) {
-				var->torque -= StepSizeVar.torque;
+			else if ( (dir == CCW) && ( parameter->torque   >= (parameter->min_torque + StepSizeVar.torque) ) ) {
+				parameter->torque -= StepSizeVar.torque;
+			}
+		break;
+		case KERS_SETTING:
+			if ( (dir == CW) && ( (parameter->kers_value + StepSizeVar.kers) <= parameter->kers_value )  ) {
+				parameter->kers_value += StepSizeVar.kers;
+			}
+			else if ( (dir == CCW) && ( parameter->kers_value   >= (parameter->min_kers_value + StepSizeVar.kers) ) ) {
+				parameter->kers_value -= StepSizeVar.kers;
+			}
+		break;
+		case TRACTION_CONTROL_SETTING:
+			if ( (dir == CW) && ( parameter->traction_control_value == 0  ) ) {
+				parameter->traction_control_value = 1;
+			}
+			else if ( (dir == CCW) && (parameter->traction_control_value == 1) ) {
+				parameter->traction_control_value = 0;
 			}
 		break;
 	}
 }
-
-
-
 //***********************************************************************************
 //------------------------------------DATALOGGER FUNCTIONS-------------------------//
 //***********************************************************************************
