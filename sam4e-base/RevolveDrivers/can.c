@@ -305,25 +305,32 @@ void can_read_message(Can *can, uint8_t mailboxID, struct CanMessage *message){
 }
 
 void can_enableRXInterrupt(Can *can){
-	NVIC_DisableIRQ(CAN0_IRQn);
-	NVIC_ClearPendingIRQ(CAN0_IRQn);
-	NVIC_SetPriority(CAN0_IRQn,5); // must be >= 5
-	NVIC_EnableIRQ(CAN0_IRQn);
-	
+	if (can == CAN0){
+		NVIC_DisableIRQ(CAN0_IRQn);
+		NVIC_ClearPendingIRQ(CAN0_IRQn);
+		NVIC_SetPriority(CAN0_IRQn,5); // must be >= 5
+		NVIC_EnableIRQ(CAN0_IRQn);
+		}
+		else if (can == CAN1){
+		NVIC_DisableIRQ(CAN1_IRQn);
+		NVIC_ClearPendingIRQ(CAN1_IRQn);
+		NVIC_SetPriority(CAN1_IRQn,5); // must be >= 5
+		NVIC_EnableIRQ(CAN1_IRQn);
+	}
 	can_writeProtectionDisable(can);
 	//enable all interrupts on mailboxes that are in RX mode
-	can->CAN_IER = 0xff & ~(1<<TX_BOX_ID); 
+	can->CAN_IER = 0xff & ~(1<<TX_BOX_ID);
 	can_writeProtectionEnable(can);
 }
 
-void can_disableRXInterrupt(Can *can){	
-	NVIC_DisableIRQ(CAN0_IRQn);
-	NVIC_ClearPendingIRQ(CAN0_IRQn);
-	
-	can_writeProtectionDisable(can);
-	//enable all interrupts on mailboxes that are in RX mode
-	can->CAN_IDR = 0xff & ~(1<<TX_BOX_ID);
-	can_writeProtectionEnable(can);
+void can_disableRXInterrupt(Can *can){
+	if (can == CAN0){
+		NVIC_DisableIRQ(CAN0_IRQn);
+		NVIC_ClearPendingIRQ(CAN0_IRQn);
+		}else if(can == CAN1){
+		NVIC_DisableIRQ(CAN1_IRQn);
+		NVIC_ClearPendingIRQ(CAN1_IRQn);
+	}
 }
 
 enum CANReceiveStatus can_popMessage(Can *can, struct CanMessage *message){

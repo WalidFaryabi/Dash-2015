@@ -17,23 +17,25 @@
 
 #include <string.h>
 
-//VANDRING GASSPEDAL
-
+//**********************************************************************************//
+//------------------------------------ENUMS FOR THIS C FILE-------------------------//
+//**********************************************************************************//
 typedef enum {PEDAL_IN, PEDAL_OUT} EPedalPosition;
+typedef enum {TRACTION_CONTROL_ON,TRACTION_CONTROL_OFF} ETractionControlStatus;
 
 //**********************************************************************************//
 //------------------------------------THE MAIN DASH FUNCTIONS-----------------------//
 //**********************************************************************************//
-static void changeCarState(ConfirmationMsgs *conf_msgs, StatusMsg *status, SensorRealValue *sensor_real);
-static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorValues *sensor_values,StatusMsg *status,
-ConfirmationMsgs *conf_msgs,DeviceState *device_state, ParameterValue *parameter, SensorRealValue *sensor_real_value);
-static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real,DeviceState *device_state,
-ParameterValue *parameter, ModuleError *error,ConfirmationMsgs *conf_msgs);
-static void NavigateMenu(DeviceState *device_state, ParameterValue *parameter, ModuleError *error, SensorRealValue *sensor_real);
+static void changeCarState(ConfirmationMsgs *confMsg, StatusMsg *status, SensorPhysicalValues *sensorPhysicalValue);
+static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorValues *sensorValue,StatusMsg *status,
+ConfirmationMsgs *confMsg,DeviceState *deviceState, ParameterValue *parameter, SensorPhysicalValues *sensorPhysicalValue);
+static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysicalValue,DeviceState *deviceState,
+ParameterValue *parameter, ModuleError *error,ConfirmationMsgs *confMsg);
+static void NavigateMenu(DeviceState *deviceState, ParameterValue *parameter, ModuleError *error, SensorPhysicalValues *sensorPhysicalValue);
 
-static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *conf_msg, ModuleError *error, SensorValues *sensor_values,StatusMsg *status,SensorRealValue *sensor_real);
+static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg, ModuleError *error, SensorValues *sensorValue,StatusMsg *status,SensorPhysicalValues *sensorPhysicalValue);
 
-static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,DeviceState *devices);
+static void LEDHandler(SensorPhysicalValues *sensorPhysicalValue, ModuleError *error,DeviceState *devices);
 //***********************************************************************************
 //------------------------------------MENU HELPER FUNCTIONS------------------------//
 //***********************************************************************************
@@ -45,32 +47,24 @@ static void clearAllButtons();
 static bool checkForError(ModuleError *error);
 static void HandleErrors(ModuleError *error);
 
-static EPedalPosition getTorquePedalPosition(SensorRealValue *sensor_real);
-static EPedalPosition getBrakePedalPosition(SensorRealValue *sensor_real);
-static bool bmsNotCharged(SensorRealValue *sensor_real);
+static EPedalPosition getTorquePedalPosition(SensorPhysicalValues *sensorPhysicalValue);
+static EPedalPosition getBrakePedalPosition(SensorPhysicalValues *sensorPhysicalValue);
+static bool bmsNotCharged(SensorPhysicalValues *sensorPhysicalValue);
 
-static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed);
-static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed);
+static void calibrateSteering(ConfirmationMsgs *confMsg,bool ack_pressed);
+static void calibrateTorquePedal(ConfirmationMsgs *confMsg,bool ack_pressed);
 static bool checkDeviceStatus(DeviceState *devices);
 
-static void presetProcedureHandling(bool ackPressed,ConfirmationMsgs *conf_msgs);
+static void presetProcedureHandling(bool ackPressed,ConfirmationMsgs *confMsg);
 //---------------INIT THE STRUCTURES USED---------------//
-static void init_sensorRealValue_struct(SensorRealValue *sensorReal);
-static void init_sensor_value_struct(SensorValues *sensor_values);
-static void init_status_struct(StatusMsg *status);
-static void init_conf_msgs_struct(ConfirmationMsgs *conf_msgs);
-static void init_error_struct(ModuleError *error);
-static void init_parameter_struct(ParameterValue *parameter);
+static void initSensorRealValueStruct(SensorPhysicalValues *sensorReal);
+static void initSensorValueStruct(SensorValues *sensorValue);
+static void initStatusStruct(StatusMsg *status);
+static void initConfirmationMessagesStruct(ConfirmationMsgs *confMsg);
+static void initErrorMessagesStruct(ModuleError *error);
+static void initParameterStruct(ParameterValue *parameter);
 //--------------FUNCTIONS TO ADJUST VARIABLES---------------//
 static void adjustParameters(ERotary_direction dir, ParameterValue *parameter);
-//Adjustparameters will replace these functions
-static void slider_torque_update(ERotary_direction dir, ParameterValue *parameter);
-static void slider_P_term_update(ERotary_direction dir, ParameterValue *parameter);
-static void slider_I_term_update(ERotary_direction dir, ParameterValue *parameter);
-static void slider_D_term_update(ERotary_direction dir, ParameterValue *parameter);
-static void slider_R_term_update(ERotary_direction dir, ParameterValue *parameter);
-static void slider_T_term_update(ERotary_direction dir, ParameterValue *parameter);
-
 //-------------------TIMERS------------------//
 static void vRTDSCallback(TimerHandle_t xTimer);
 static void vCalibrationTimerCallback(TimerHandle_t xTimer);
@@ -83,26 +77,26 @@ static void vTSLedTimerCallback(TimerHandle_t pxtimer);
 //***********************************************************************************
 //------------------------------------CALCULATION FUNCTIONS-------------------------//
 //***********************************************************************************
-static void sensorValueToRealValue(SensorValues *sensor_values,SensorRealValue *sensor_real);
+static void sensorValueToRealValue(SensorValues *sensorValue,SensorPhysicalValues *sensorPhysicalValue);
 
 //***********************************************************************************
 //------------------------------------DRAWING FUNCTIONS----------------------------//
 //***********************************************************************************
-static void DrawMainScreen(SensorRealValue *sensor,uint8_t low_volt, uint8_t high_volt, DeviceState *devices);
+static void DrawMainScreen(SensorPhysicalValues *sensor,uint8_t low_volt, uint8_t high_volt, DeviceState *devices);
 static void DrawLowVoltageBattery(uint8_t battery_left_percent);
 static void DrawHighVoltageBattery(uint8_t battery_left_percent);
 static void DrawHighVoltageSymbol();
 
-static void DrawSpeedScreen(SensorRealValue *sensor_real);
-static void DrawSystemMonitorScreen(ModuleError *error,SensorRealValue *val);
-static void DrawTempAndVoltScreen(SensorRealValue *tempvolt);
+static void DrawSpeedScreen(SensorPhysicalValues *sensorPhysicalValue);
+static void DrawSystemMonitorScreen(ModuleError *error,SensorPhysicalValues *val);
+static void DrawTempAndVoltScreen(SensorPhysicalValues *tempvolt);
 
 static void DrawMainMenu();
 static void DrawAdjustmentMenu();
 static void DrawECUAdjustmentScreen(ParameterValue *parameter);
-static void DrawDeviceStatusMenu(DeviceState *device_state);
+static void DrawDeviceStatusMenu(DeviceState *deviceState);
 
-static void DrawTorqueCalibrationScreen(ConfirmationMsgs *conf_msg);
+static void DrawTorqueCalibrationScreen(ConfirmationMsgs *confMsg);
 static void DrawSteerCalibScreen();
 static void DrawDriveEnableWarning(bool torque_pedal, bool brake_pedal, bool bms_discharge);
 static void DrawLaunchControlProcedure();
@@ -111,7 +105,8 @@ static void DrawDataloggerInterface();
 static void DrawFloat(uint16_t x, uint16_t y, uint8_t font_size, float f);
 static void DrawPresetMenu();
 static void DrawPresetProcedure();
-
+static void DrawPresetConfirmation();
+static void DrawParallellogramMainScreen();
 //***********************************************************************************
 //------------------------------------DATALOGGER FUNCTIONS-------------------------//
 //***********************************************************************************
@@ -147,8 +142,8 @@ const char menu_500[] = "Trq. Enc. Calibration";				// 15
 
 const char menu_600[] = "ECU OPTIONS";							// 16			
 const char menu_601[] = "MAX TORQUE";							// 17
-const char menu_602[] = "P TERM";								// 18
-const char menu_603[] = "D TERM";								// 19
+const char menu_602[] = "KERS";								// 18
+const char menu_603[] = "TRACTION CONTROL";								// 19
 const char menu_604[] = "I TERM";								// 20
 
 const char menu_605[] = "ECU T";								// 21
@@ -205,16 +200,19 @@ const MenuEntry menu[] = {
 		
 	{"LOCKED", 1,	28,	28, 28,	28, 28,	0,  LOCKED_SEL,			NO_SETTING,				0,0},							//28 Locked menu position
 		
-	{"VERYWET10", 8,29,	30, 12,	33, 37,	0,  PRESET_SEL,			PRESET_1_SETTING,		0,0},							//29 Preset option
-	{"VERYWET20", 8,29,	31, 12,	34, 37,	1,  PRESET_SEL,			PRESET_2_SETTING,		0,0},							//30 Preset option
-	{"WET10",	  8,30,	32, 12,	35, 37,	2,  PRESET_SEL,			PRESET_3_SETTING,		0,0},							//31 Preset option
-	{"VWET20",	  8,31,	33, 12,	36, 37,	3,  PRESET_SEL,			PRESET_4_SETTING,		0,0},							//32 Preset option
-	{"DRY10",     8,32,	34, 29,	33, 37,	4,  PRESET_SEL,			PRESET_5_SETTING,		0,0},							//33 Preset option
-	{"DRY20",     8,33,	35, 30,	34, 37,	5,  PRESET_SEL,			PRESET_6_SETTING,		0,0},							//34 Preset option
-	{"DRY25",     8,34,	36, 31,	35, 37,	6,	PRESET_SEL,			PRESET_7_SETTING,		0,0},							//35 Preset option
-	{"GEN",       8,35,	36, 32,	36, 37,	7,	PRESET_SEL,			PRESET_8_SETTING,		0,0},							//36 Preset option
-	
-	{"PRELOCK",   1,37,	37, 37,	37, 37,	0,	PRESET_PROCEDURE,	NO_SETTING,				0,0}							//37 Preset option
+	{"VERYWET10", 8,29,	30, 12,	33, 38,	0,  PRESET_SEL,			PRESET_1_SETTING,		0,0},							//29 Preset option
+	{"VERYWET20", 8,29,	31, 12,	34, 38,	1,  PRESET_SEL,			PRESET_2_SETTING,		0,0},							//30 Preset option
+	{"WET10",	  8,30,	32, 12,	35, 38,	2,  PRESET_SEL,			PRESET_3_SETTING,		0,0},							//31 Preset option
+	{"VWET20",	  8,31,	33, 12,	36, 38,	3,  PRESET_SEL,			PRESET_4_SETTING,		0,0},							//32 Preset option
+	{"DRY10",     8,32,	34, 29,	33, 38,	4,  PRESET_SEL,			PRESET_5_SETTING,		0,0},							//33 Preset option
+	{"DRY20",     8,33,	35, 30,	34, 38,	5,  PRESET_SEL,			PRESET_6_SETTING,		0,0},							//34 Preset option
+	{"DRY25",     8,34,	36, 31,	35, 38,	6,	PRESET_SEL,			PRESET_7_SETTING,		0,0},							//35 Preset option
+	{"GEN",       8,35,	36, 32,	36, 38,	7,	PRESET_SEL,			PRESET_8_SETTING,		0,0},							//36 Preset option
+		
+	{"YES",       2,37,	37, 37,	38, 39,	0,	PRESET_CONFIRM,		CONFIRM_YES,			0,0},							//37 Preset Yees
+	{"NO",        2,38,	38, 37,	38, 29,	1,	PRESET_CONFIRM,		CONFIRM_NO,				0,0},							//38 Preset 
+		
+	{"PRELOCK",   1,39,	39, 39,	39, 39,	0,	PRESET_PROCEDURE,	NO_SETTING,				0,0}							//39 Preset option
 		
 	
 	//{menu_703, 4,	27,	28,	11,	28, 28,	3,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//28 Delete all files
@@ -237,10 +235,10 @@ const MenuEntry menu[] = {
 #define PRESET_PROCEDURE_POS		37
 
 #define NUM_MENUS_UPDATE 2 // Number of menus to specifiy a certain update frequency for
-#define RTDS_DURATION_MS 3000
+#define RTDS_DURATION_MS 1500
 #define WATCHDOG_RESET_COMMAND  ( (0xA5 << 24) | (1<<0)) // Command to write to WDT CR register to reset the counter
 
-
+// Identifiers for parameters sent to ECU
 #define P_TERM			0x01
 #define I_TERM			0x02
 #define D_TERM			0x03
@@ -248,8 +246,9 @@ const MenuEntry menu[] = {
 #define MAX_DECREASE	0x05
 #define DESIRED_SLIP	0x06
 #define MAX_INTEGRAL	0x07
-#define MAX_TORQUE		0x08
-#define KERS_ADJUST		0x09
+#define MAX_TORQUE		0xF0
+#define KERS_ADJUST		0xF1
+#define SELECTED_PRESET 0xF2
 //***********************************************************************************
 //-------------------------SEMAPHORE, TIMERS AND QUEUES----------------------------//
 //***********************************************************************************
@@ -259,10 +258,10 @@ SemaphoreHandle_t		can_mutex_0		= NULL;
 SemaphoreHandle_t		can_mutex_1		= NULL;
 static TimerHandle_t	TSLedTimer;
 static TimerHandle_t	RTDSTimer;
-static TimerHandle_t	LC_timer;
+static TimerHandle_t	LcTimer;
 static TimerHandle_t	calibrationTimer;
 static TimerHandle_t	parameterConfTimer;
-static TimerHandle_t	timer_menuUpdate[NUM_MENUS_UPDATE];
+static TimerHandle_t	timerMenuUpdate[NUM_MENUS_UPDATE];
 static bool				trq_calib_timed_out				= false;
 static bool				steer_calib_timed_out			= false;
 static bool				parameter_confirmation_timed_out = false;
@@ -270,10 +269,11 @@ static uint8_t			lc_timer_count					= 0; // Countdown timer for launch control
 //***********************************************************************************
 //---------------------------FILE GLOBAL STATE VARIABLES------------------------------//
 //***********************************************************************************
-static ECarState					car_state			= TRACTIVE_SYSTEM_OFF;
-static ESteerCalibState				steer_calib_state	= STEER_C_OFF;
-static ETorquePedalCalibrationState trq_calib_state		= TRQ_CALIBRATION_OFF;
-static EPresetStates				presetProcedureState= PRESET_PROCEDURE_OFF;
+static ECarState					carState					= TRACTIVE_SYSTEM_OFF;
+static ESteerCalibState				steeringCalibrationState	= STEER_C_OFF;
+static ETorquePedalCalibrationState torquePedalCalibrationState	= TRQ_CALIBRATION_OFF;
+static EPresetStates				presetProcedureState		= PRESET_PROCEDURE_OFF;
+static ETractionControlStatus		tractionControlState		= TRACTION_CONTROL_OFF;
 
 //***********************************************************************************
 //------------------------------------GLOBAL STRUCTS-------------------------------//
@@ -293,7 +293,7 @@ Buttons btn = {
 	.rotary_cw				= false,
 	.unhandledButtonAction  = false
 };
-DeviceState device_state = {
+DeviceState deviceState = {
 	.ECU		= DEAD,
 	.TRQ_0		= DEAD,
 	.TRQ_1		= DEAD,
@@ -312,7 +312,7 @@ DeviceState device_state = {
 	.IMD		= DEAD
 };
 typedef enum {STEP_ONE = 1, STEP_TEN=10} EStepSize ;
-static struct StepSizeForVariables {
+struct StepSizeForVariables {
 	EStepSize kers;
 	EStepSize torque;
 	};
@@ -336,38 +336,38 @@ EAdjustmentParameter presetSetting;
 //***********************************************************************************
 //--------------------------------FILE GLOBALS-------------------------------------//
 //***********************************************************************************
+static uint8_t selected_preset_file = 100;
 static bool RTDS_finished_playing = false;
 static uint8_t prev_selected = 0;
 //***********************************************************************************
 //------------------------------------THE MAIN DASH FUNCTIONS-----------------------//
 //***********************************************************************************
-// Find out if all sensorhandling should be put in a task so that the dash task can be run with a slower frequency
 void dashTask() {
 	TickType_t xLastWakeTime;
 	RTDSTimer				= xTimerCreate("RTDSTimer",RTDS_DURATION_MS/portTICK_RATE_MS,pdFALSE,0,vRTDSCallback);
-	LC_timer				= xTimerCreate("lcTimer",1000/portTICK_RATE_MS,pdTRUE,(void *) 1,vLcTimerCallback);
+	LcTimer					= xTimerCreate("lcTimer",1000/portTICK_RATE_MS,pdTRUE,(void *) 1,vLcTimerCallback);
 	calibrationTimer		= xTimerCreate("CalibTimer",3000/portTICK_RATE_MS,pdFALSE,(void *) 1,vCalibrationTimerCallback);
-	parameterConfTimer		= xTimerCreate("varTimer",1000/portTICK_RATE_MS,pdFALSE,0,vVarConfTimerCallback);
+	parameterConfTimer		= xTimerCreate("parTimer",1000/portTICK_RATE_MS,pdFALSE,0,vVarConfTimerCallback);
 	TSLedTimer				= xTimerCreate("TSLed", 300/portTICK_RATE_MS,pdTRUE,0,vTSLedTimerCallback);
 	createAndStartMenuUpdateTimers();
 	
 	
 	
 	//Init states
-	SensorValues		sensor_values;
-	SensorRealValue		sensor_real;
-	StatusMsg			status;
-	ConfirmationMsgs	conf_msgs;
-	ModuleError			error;
+	SensorValues			sensorValue;
+	SensorPhysicalValues	sensorPhysicalValue;
+	StatusMsg				status;
+	ConfirmationMsgs		confMsg;
+	ModuleError				error;
 	ParameterValue			parameter;
 
-	init_sensorRealValue_struct(&sensor_real);
-	init_sensor_value_struct(&sensor_values);
-	init_status_struct(&status);
-	init_conf_msgs_struct(&conf_msgs);
-	init_error_struct(&error);
-	init_parameter_struct(&parameter);
-	//ECarState car_state = TRACTIVE_SYSTEM_OFF;
+	initSensorRealValueStruct(&sensorPhysicalValue);
+	initSensorValueStruct(&sensorValue);
+	initStatusStruct(&status);
+	initConfirmationMessagesStruct(&confMsg);
+	initErrorMessagesStruct(&error);
+	initParameterStruct(&parameter);
+	//ECarState carState = TRACTIVE_SYSTEM_OFF;
 	
 	//Start FT800 in a clean way
 	vTaskDelay(20/portTICK_RATE_MS);
@@ -383,6 +383,7 @@ void dashTask() {
 	//Need to delay 50 ms after the init of ft800 before any transfers to it happen
 	vTaskDelay(50/portTICK_RATE_MS);
 	spi_setBaudRateHz(120000000,20000000,0); // Increase speed after init
+	
 	//Upload the highvoltage icon to the FT800 
 	uint32_t ram_offset=0;
 	for(int i=0; i<4130; i++){
@@ -397,20 +398,20 @@ void dashTask() {
 		// is controlled by software timers to ensure that no processing power is wasted on spi comms.
 		WDT->WDT_CR = WATCHDOG_RESET_COMMAND; // Restart watchdog timer
 		//Get relevant CAN messages from the specified freeRTOS queue
-		getDashMessages(&parameter,&conf_msgs,&error,&sensor_values, &status,&sensor_real);
+		getDashMessages(&parameter,&confMsg,&error,&sensorValue, &status,&sensorPhysicalValue);
 		xSemaphoreTake(xButtonStruct, portMAX_DELAY);
-		dashboardControlFunction(&btn,&error,&sensor_values,&status,&conf_msgs, &device_state,&parameter,&sensor_real);
+		dashboardControlFunction(&btn,&error,&sensorValue,&status,&confMsg, &deviceState,&parameter,&sensorPhysicalValue);
 		xSemaphoreGive(xButtonStruct);
 		//vTaskDelay(35/portTICK_RATE_MS);
 		//vTaskDelayUntil(&xLastWakeTime,150/portTICK_RATE_MS);
 	}
 }
 
-static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorValues *sensor_values, 
-	StatusMsg *status, ConfirmationMsgs *conf_msgs,DeviceState *device_state,ParameterValue *parameter, SensorRealValue *sensor_real_value) {
+static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorValues *sensorValue, 
+	StatusMsg *status, ConfirmationMsgs *confMsg,DeviceState *deviceState,ParameterValue *parameter, SensorPhysicalValues *sensorPhysicalValue) {
 		
-	changeCarState(conf_msgs, status, sensor_real_value);
-	LEDHandler(sensor_real_value,error,device_state);
+	changeCarState(confMsg, status, sensorPhysicalValue);
+	LEDHandler(sensorPhysicalValue,error,deviceState);
 	if (checkForError(error)) {
 		HandleErrors(error);
 	}
@@ -421,7 +422,7 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 	}
 	
 	if (btn->unhandledButtonAction) {
-		HandleButtonActions(btn,sensor_real_value, device_state, parameter,error,conf_msgs);
+		HandleButtonActions(btn,sensorPhysicalValue, deviceState, parameter,error,confMsg);
 	}
 	
 	//UPDATE SCREENS ON THE DISPLAY AND CALL MENU LOCATION DEPENDENT FUNCTIONS
@@ -437,7 +438,7 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 		case SYSTEM_MONITOR:
 		if ((menuUpdate.update_menu == true) ) {
 			menuUpdate.update_menu = false;
-			DrawSystemMonitorScreen(error, sensor_real_value);
+			DrawSystemMonitorScreen(error, sensorPhysicalValue);
 		}
 		
 		break;
@@ -445,7 +446,7 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 		case TEMP_VOLT:
 		if ((menuUpdate.update_menu == true) ) {
 			menuUpdate.update_menu = false;
-			DrawTempAndVoltScreen(sensor_real_value);
+			DrawTempAndVoltScreen(sensorPhysicalValue);
 		}
 		
 		break;
@@ -453,14 +454,14 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 		case DEVICE_STATUS:
 		if ((menuUpdate.update_menu == true) ) {
 			menuUpdate.update_menu = false;
-			DrawDeviceStatusMenu(device_state);
+			DrawDeviceStatusMenu(deviceState);
 		}
 		
 		break;
 		case MAIN_SCREEN:
 		if ((menuUpdate.update_menu == true) ) {
 			menuUpdate.update_menu = false;
-			DrawMainScreen(sensor_real_value,50,10, device_state);
+			DrawMainScreen(sensorPhysicalValue,100,100, deviceState);
 		}
 		break;
 		case MAIN_MENU:
@@ -481,14 +482,14 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 		case TRQ_CALIB:
 		if (menuUpdate.update_procedures == true) {
 			menuUpdate.update_procedures = false;
-			calibrateTorquePedal(conf_msgs,false);
+			calibrateTorquePedal(confMsg,false);
 		}
 		
 		break;
 		case STEER_CALIB:
 			if (menuUpdate.update_procedures == true) {
 				menuUpdate.update_procedures = false;
-				calibrateSteering(conf_msgs,false);
+				calibrateSteering(confMsg,false);
 			}
 		
 		break;
@@ -506,24 +507,32 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 			menuUpdate.update_menu = false;
 			DrawPresetMenu();
 		}
-		break;		
+		break;
+		case PRESET_CONFIRM:
+		if (menuUpdate.update_procedures == true) {
+			menuUpdate.update_procedures = false;
+			DrawPresetConfirmation();
+		}
+		break;	
 		case PRESET_PROCEDURE:	
 		if (menuUpdate.update_procedures == true) {
 			menuUpdate.update_procedures = false;
-			presetProcedureHandling(false,conf_msgs);
+			presetProcedureHandling(false,confMsg);
 		}
 		break;
 	}
 }
 
 
-static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs) {
+static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *confMsg) {
 	static enum EDataloggerCommands close_file = CLOSE_FILE;
 	static enum EDataloggerCommands get_files = GET_PARAMETERS_FROM_FILE;
 	switch (presetProcedureState) {
 		case PRESET_PROCEDURE_INIT:
 			// Stop and close file for datalogger
-			// Send command to extract data from file 
+			// Send command to extract data from file
+			
+			
 			xQueueSendToBack(xDataloggerCommandQueue,&close_file,10/portTICK_RATE_MS);
 			xQueueSendToBack(xDataloggerCommandQueue,&get_files,10/portTICK_RATE_MS);
 			presetProcedureState = PRESET_PROCEDURE_WAITING;
@@ -544,13 +553,14 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 			EcuParametersFromFile.data.f[1] = presetParameters.p_term;
 			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
+			confMsg->ECU_parameter_confirmed = false;
 			parameter_confirmation_timed_out = false;
 			presetProcedureState = WAIT_P_TERM;
 		break;
 		
 		case WAIT_P_TERM:
-			if (conf_msgs->ECU_parameter_confirmed == true) {
-				conf_msgs->ECU_parameter_confirmed = false;
+			if (confMsg->ECU_parameter_confirmed == true) {
+				confMsg->ECU_parameter_confirmed = false;
 				presetProcedureState = PRESET_PROCEDURE_SEND_I_TERM;
 			}
 			else if (parameter_confirmation_timed_out == true) {
@@ -568,8 +578,8 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 		break;
 		
 		case WAIT_I_TERM:
-			if (conf_msgs->ECU_parameter_confirmed == true) {
-				conf_msgs->ECU_parameter_confirmed = false;
+			if (confMsg->ECU_parameter_confirmed == true) {
+				confMsg->ECU_parameter_confirmed = false;
 				presetProcedureState = PRESET_PROCEDURE_FINISHED;
 			}
 			else if (parameter_confirmation_timed_out == true) {
@@ -587,8 +597,8 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 		break;
 		
 		case WAIT_D_TERM:
-			if (conf_msgs->ECU_parameter_confirmed == true) {
-				conf_msgs->ECU_parameter_confirmed = false;
+			if (confMsg->ECU_parameter_confirmed == true) {
+				confMsg->ECU_parameter_confirmed = false;
 				presetProcedureState = PRESET_PROCEDURE_FINISHED;
 			}
 			else if (parameter_confirmation_timed_out == true) {
@@ -606,8 +616,8 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 		break;
 		
 		case WAIT_MAX_MIN_TERM:
-		if (conf_msgs->ECU_parameter_confirmed == true) {
-			conf_msgs->ECU_parameter_confirmed = false;
+		if (confMsg->ECU_parameter_confirmed == true) {
+			confMsg->ECU_parameter_confirmed = false;
 			presetProcedureState = PRESET_PROCEDURE_FINISHED;
 		}
 		else if (parameter_confirmation_timed_out == true) {
@@ -624,8 +634,8 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 			presetProcedureState = WAIT_I_TERM;
 		break;
 		case WAIT_MAX_DECREASE_TERM:
-			if (conf_msgs->ECU_parameter_confirmed == true) {
-				conf_msgs->ECU_parameter_confirmed = false;
+			if (confMsg->ECU_parameter_confirmed == true) {
+				confMsg->ECU_parameter_confirmed = false;
 				presetProcedureState = PRESET_PROCEDURE_FINISHED;
 			}
 			else if (parameter_confirmation_timed_out == true) {
@@ -641,8 +651,8 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 			presetProcedureState = WAIT_I_TERM;
 		break;
 		case WAIT_DESIRED_SLIP_TERM:
-			if (conf_msgs->ECU_parameter_confirmed == true) {
-				conf_msgs->ECU_parameter_confirmed = false;
+			if (confMsg->ECU_parameter_confirmed == true) {
+				confMsg->ECU_parameter_confirmed = false;
 				presetProcedureState = PRESET_PROCEDURE_FINISHED;
 			}
 			else if (parameter_confirmation_timed_out == true) {
@@ -652,7 +662,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 		
 		case PRESET_PROCEDURE_SEND_MAX_INTEGRAL_TERM:
 			EcuParametersFromFile.data.u8[0] = MAX_INTEGRAL;
-			EcuParametersFromFile.data.u32[1] = presetParameters.max_integral_term;
+			EcuParametersFromFile.data.f[1] = presetParameters.max_integral_term;
 			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
@@ -660,8 +670,26 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 		break;
 		
 		case WAIT_MAX_INTEGRAL_TERM:
-			if (conf_msgs->ECU_parameter_confirmed == true) {
-				conf_msgs->ECU_parameter_confirmed = false;
+			if (confMsg->ECU_parameter_confirmed == true) {
+				confMsg->ECU_parameter_confirmed = false;
+				presetProcedureState = PRESET_PROCEDURE_SEND_SELECTED_PRESET;
+			}
+			else if (parameter_confirmation_timed_out == true) {
+				presetProcedureState = PRESET_PROCEDURE_FAILED;
+			}
+		break;
+		case PRESET_PROCEDURE_SEND_SELECTED_PRESET:
+			EcuParametersFromFile.data.u8[0] = SELECTED_PRESET;
+			EcuParametersFromFile.data.u8[1] = presetParameters.selected_preset;
+			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			xTimerReset(parameterConfTimer,0);
+			parameter_confirmation_timed_out = false;
+			presetProcedureState = WAIT_SELECTED_PRESET;
+		break;
+		
+		case WAIT_SELECTED_PRESET:
+			if (confMsg->ECU_parameter_confirmed == true) {
+				confMsg->ECU_parameter_confirmed = false;
 				presetProcedureState = PRESET_PROCEDURE_FINISHED;
 			}
 			else if (parameter_confirmation_timed_out == true) {
@@ -692,64 +720,64 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *conf_msgs
 	}
 }
 
-static void changeCarState(ConfirmationMsgs *conf_msgs, StatusMsg *status, SensorRealValue *sensor_real ) {
-	switch(car_state) {
+static void changeCarState(ConfirmationMsgs *confMsg, StatusMsg *status, SensorPhysicalValues *sensorPhysicalValue ) {
+	switch(carState) {
 		case TRACTIVE_SYSTEM_OFF:
 			if (status->shut_down_circuit_closed == true) {
-				car_state = TRACTIVE_SYSTEM_ON;
+				carState = TRACTIVE_SYSTEM_ON;
 			}
 			break;
 		case TRACTIVE_SYSTEM_ON:
 			if (status->shut_down_circuit_closed == false ) {
-				car_state = TRACTIVE_SYSTEM_OFF;
+				carState = TRACTIVE_SYSTEM_OFF;
 				
 			}
-			else if (conf_msgs->drive_enabled_confirmed == true) {
-				car_state = DRIVE_ENABLED;
-				conf_msgs->drive_enabled_confirmed = false;
+			else if (confMsg->drive_enabled_confirmed == true) {
+				carState = DRIVE_ENABLED;
+				confMsg->drive_enabled_confirmed = false;
 			}
 			break;
 		case DRIVE_ENABLED:
 			if (status->shut_down_circuit_closed == false) {
 				can_sendMessage(CAN0,TorquePedalCalibrationMax);
-				car_state = TRACTIVE_SYSTEM_OFF;
+				carState = TRACTIVE_SYSTEM_OFF;
 			}
-			else if (conf_msgs->drive_disabled_confirmed == true) {
-				car_state = TRACTIVE_SYSTEM_ON;
+			else if (confMsg->drive_disabled_confirmed == true) {
+				carState = TRACTIVE_SYSTEM_ON;
 				can_sendMessage(CAN0,FinishedRTDS);
-				conf_msgs->drive_disabled_confirmed = false;
+				confMsg->drive_disabled_confirmed = false;
 			}
-			else if (conf_msgs->lc_request_confirmed == true) {
-				car_state = LC_PROCEDURE;
+			else if (confMsg->lc_request_confirmed == true) {
+				carState = LC_PROCEDURE;
 				// Go to the menu element for launch control. This is done so that handlebuttons etc can run without any problems
 				selected = LC_HANDLER_POS; 
-				conf_msgs->lc_request_confirmed = false;
+				confMsg->lc_request_confirmed = false;
 			}
 			
 			break;
 		case LC_PROCEDURE:
 			DrawLaunchControlProcedure();
-			//if ( (getTorquePedalPosition(sensor_real) == PEDAL_IN) && (getBrakePedalPosition(sensor_real) == PEDAL_IN) ) {
+			//if ( (getTorquePedalPosition(sensorPhysicalValue) == PEDAL_IN) && (getBrakePedalPosition(sensorPhysicalValue) == PEDAL_IN) ) {
 			if ( btn.btn_type == PUSH_ACK) {
-				car_state = LC_STANDBY;
+				carState = LC_STANDBY;
 				
 				btn.btn_type = NONE_BTN;
 				btn.unhandledButtonAction = false;
 			}
 			//}
-			//else if (getTorquePedalPosition(sensor_real) == false) {
-			//	car_state = DRIVE_ENABLED;
+			//else if (getTorquePedalPosition(sensorPhysicalValue) == false) {
+			//	carState = DRIVE_ENABLED;
 			//}
 			else if (status->shut_down_circuit_closed == false) {
-				car_state = TRACTIVE_SYSTEM_OFF;
+				carState = TRACTIVE_SYSTEM_OFF;
 			}
-			else if (conf_msgs->drive_disabled_confirmed == true) {
+			else if (confMsg->drive_disabled_confirmed == true) {
 				can_sendMessage(CAN0,EcuParametersFromFile);
-				car_state = TRACTIVE_SYSTEM_ON;
-				conf_msgs->drive_disabled_confirmed = false;
+				carState = TRACTIVE_SYSTEM_ON;
+				confMsg->drive_disabled_confirmed = false;
 			}
 			else if (btn.btn_type == LAUNCH_CONTROL) {
-				car_state = LC_ABORTED;
+				carState = LC_ABORTED;
 				btn.btn_type = NONE_BTN;
 				btn.unhandledButtonAction = false;
 			}
@@ -757,61 +785,68 @@ static void changeCarState(ConfirmationMsgs *conf_msgs, StatusMsg *status, Senso
 		
 		case LC_STANDBY:
 			
-			if ( (getBrakePedalPosition(sensor_real) == PEDAL_OUT) && (getTorquePedalPosition(sensor_real) == PEDAL_IN) ) {
-				car_state = LC_COUNTDOWN;
-				xTimerStart(LC_timer,1000/portTICK_RATE_MS);
+			if ( (getBrakePedalPosition(sensorPhysicalValue) == PEDAL_OUT) && (getTorquePedalPosition(sensorPhysicalValue) == PEDAL_IN) ) {
+				carState = LC_COUNTDOWN;
+				xTimerStart(LcTimer,1000/portTICK_RATE_MS);
 				lc_timer_count = 0;
 			}
-			else if (getTorquePedalPosition(sensor_real) == PEDAL_OUT) {
-				car_state = LC_ABORTED;
+			else if (getTorquePedalPosition(sensorPhysicalValue) == PEDAL_OUT) {
+				carState = LC_ABORTED;
 			}
 			else if (btn.btn_type == LAUNCH_CONTROL) {
-				car_state = LC_ABORTED;
+				carState = LC_ABORTED;
 				btn.btn_type = NONE_BTN;
 				btn.unhandledButtonAction = false;
 			}
 			break;
 		case LC_COUNTDOWN:
 			DrawLaunchControlProcedure();
-			//if (getBrakePedalPosition(sensor_real) == PEDAL_OUT) && (getTorquePedalPosition(sensor_real) == PEDAL_IN) {
+			//if (getBrakePedalPosition(sensorPhysicalValue) == PEDAL_OUT) && (getTorquePedalPosition(sensorPhysicalValue) == PEDAL_IN) {
 				if (lc_timer_count == 5) {
-					car_state = LC_WAITING_FOR_ECU_TO_ARM_LC;
-					xTimerReset(LC_timer,5/portTICK_RATE_MS);
+					carState = LC_WAITING_FOR_ECU_TO_ARM_LC;
+					xTimerReset(LcTimer,5/portTICK_RATE_MS);
 					lc_timer_count = 0;
 					//Send can message that countdown is finished
 					can_freeRTOSSendMessage(CAN0,RequestLCArmed);
 				}
 			//}
 			/*else {
-				xTimerStop(LC_timer,5/portTICK_RATE_MS);
+				xTimerStop(LcTimer,5/portTICK_RATE_MS);
 				lc_timer_count = 0;
-				car_state = LC_ABORTED;
+				carState = LC_ABORTED;
 			}*/
 			break;		
 		case LC_WAITING_FOR_ECU_TO_ARM_LC:
-			if (conf_msgs->lc_ready == true) {
-				conf_msgs->lc_ready = false;
-				car_state = LC_ARMED;
-				xTimerStop(LC_timer,0);
+			if (confMsg->lc_ready == true) {
+				confMsg->lc_ready = false;
+				carState = LC_ARMED;
+				xTimerStop(LcTimer,0);
 				lc_timer_count = 0;
 			}
 			else if (lc_timer_count > 2) {
-				car_state = LC_ARMING_TIMED_OUT;
+				carState = LC_ARMING_TIMED_OUT;
 				lc_timer_count = 0;
-				xTimerStop(LC_timer,0);
+				xTimerStop(LcTimer,0);
 			}
 			break;
 		case LC_ARMED:
 			DrawLaunchControlProcedure();
-			//if (getTorquePedalPosition(sensor_real) == false) {
-			//	car_state = DRIVE_ENABLED;
+			//DrawMainScreen()
+			if (confMsg->lc_off == true) {
+				confMsg->lc_off = false;
+				carState = DRIVE_ENABLED;
+				selected = 0;
+				//should display main screen
+			}
+			//if (getTorquePedalPosition(sensorPhysicalValue) == false) {
+			//	carState = DRIVE_ENABLED;
 			//	selected = 0;
 			//}
 			break;
 		case LC_ABORTED:
 			DrawLaunchControlProcedure();
 			if ( btn.btn_type == PUSH_ACK) {
-				car_state = DRIVE_ENABLED;
+				carState = DRIVE_ENABLED;
 				selected = 0;
 				btn.btn_type = NONE_BTN;
 				btn.unhandledButtonAction = false;
@@ -820,7 +855,7 @@ static void changeCarState(ConfirmationMsgs *conf_msgs, StatusMsg *status, Senso
 		case LC_ARMING_TIMED_OUT:
 			DrawLaunchControlProcedure();
 			if ( btn.btn_type == PUSH_ACK) {
-				car_state = DRIVE_ENABLED;
+				carState = DRIVE_ENABLED;
 				selected = 0;
 				btn.btn_type = NONE_BTN;
 				btn.unhandledButtonAction = false;
@@ -829,10 +864,10 @@ static void changeCarState(ConfirmationMsgs *conf_msgs, StatusMsg *status, Senso
 	}					
 }
 
-static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,DeviceState *device_state, 
-						 ParameterValue *parameter, ModuleError *error, ConfirmationMsgs *conf_msgs) { 
+static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysicalValue ,DeviceState *deviceState, 
+						 ParameterValue *parameter, ModuleError *error, ConfirmationMsgs *confMsg) { 
 	if (btn->btn_type == NAVIGATION) {
-		NavigateMenu(device_state, parameter,error, sensor_real);
+		NavigateMenu(deviceState, parameter,error, sensorPhysicalValue);
 		
 	}
 	// If changing a variable and acknowledge button is pressed the selection will be confirmed,
@@ -848,61 +883,92 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 				selected = 0; // Return to main menu
 			break;
 			case PRESET_SEL:
+				
 				if (presetProcedureState == PRESET_PROCEDURE_OFF) {
-					presetProcedureState = PRESET_PROCEDURE_INIT;
+					//presetProcedureState = PRESET_PROCEDURE_INIT;
 					// Get the file name off the preset file to get data from
 					// This file name is global and used in the datalogger task 
 					// to open the correct file.
 					switch (menu[selected].current_setting) {
 						case PRESET_1_SETTING:
 							strcpy(preset_file_name,"VWET10.txt");
+							presetParameters.selected_preset = 0;
 						break;
 						case PRESET_2_SETTING:
 							strcpy(preset_file_name,"VWET20.txt");
+							presetParameters.selected_preset = 1;
 						break;
 						case PRESET_3_SETTING:
 							strcpy(preset_file_name,"WET10.txt");
+							presetParameters.selected_preset = 2;
 						break;
 						case PRESET_4_SETTING:
 							strcpy(preset_file_name,"WET20.txt");
+							presetParameters.selected_preset = 3;
 						break;
 						case PRESET_5_SETTING:
 							strcpy(preset_file_name,"DRY10.txt");
+							presetParameters.selected_preset = 4;
 						break;
 						case PRESET_6_SETTING:
 							strcpy(preset_file_name,"DRY20.txt");
+							presetParameters.selected_preset = 5;
 						break;
 						case PRESET_7_SETTING:
 							strcpy(preset_file_name,"DRY25.txt");
+							presetParameters.selected_preset = 6;
 						break;
 						case PRESET_8_SETTING:
 							strcpy(preset_file_name,"GENERAL.txt");
+							presetParameters.selected_preset = 7;
 						break;
 					}
 					//presetSetting = menu[selected].current_setting;
-					//presetProcedureHandling(false,conf_msgs);
+					//presetProcedureHandling(false,confMsg);
 					selected = menu[selected].push_button;
 				}
 			break;
+			case PRESET_CONFIRM:
+				if (menu[selected].current_setting == CONFIRM_YES) {
+					presetProcedureState = PRESET_PROCEDURE_INIT;
+				}
+				selected = menu[selected].push_button;
 			case PRESET_PROCEDURE:
-				presetProcedureHandling(true,conf_msgs);
+				presetProcedureHandling(true,confMsg);
 				break;
-					
 			case ECU_OPTIONS:
 				switch (menu[selected].current_setting) {
 					case TORQUE_SETTING:
 						//EcuParametersFromFile.data = parameter->
-						EcuParametersFromFile.data.u8[0] = CAN_SET_TORQUE;
+						EcuParametersFromFile.data.u8[0] = MAX_TORQUE;
 						EcuParametersFromFile.dataLength = 2;
 						if ( (parameter->torque <= 100) && (parameter->torque >= 0) ) {
 							EcuParametersFromFile.data.u8[1] = parameter->torque;
 							can_freeRTOSSendMessage(CAN0,EcuParametersFromFile);
 						}
 					break;
+					case KERS_SETTING:
+						EcuParametersFromFile.data.u8[0] = KERS_ADJUST;
+						EcuParametersFromFile.dataLength = 2;
+						if ( (parameter->kers_value <= parameter->max_kers_value) && (parameter->kers_value >= 0) ) {
+							EcuParametersFromFile.data.u8[1] = parameter->kers_value;
+							can_freeRTOSSendMessage(CAN0,EcuParametersFromFile);
+						}
+						break;
+					case TRACTION_CONTROL_SETTING:
+						if (parameter->traction_control_value == 0) {
+							EcuTractionControl.data.u8[0] =  0xF0;
+						}
+						else if (parameter->traction_control_value == 1) {
+							EcuTractionControl.data.u8[0] = 0x0F;
+						}
+						can_freeRTOSSendMessage(CAN0,EcuTractionControl);
+						
+					break;
 					
 				}
-				prev_selected = selected;
-				selected = LOCKED_SEL_POS;
+				//prev_selected = selected;
+				//selected = LOCKED_SEL_POS;
 				parameter_confirmation_timed_out = false;
 				// The menu selection is set to a locked position, the menu will return to its position after 
 				// the timer runs out or the variable is confirmed.
@@ -911,13 +977,13 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 			case PERSISTENT_MSG:
 				//If a persistent msg is acknowledged the user is returned to the main screen
 				selected = 0; //Return to main screen
-				DrawMainScreen(sensor_real,20,20,device_state);
+				DrawMainScreen(sensorPhysicalValue,100,100,deviceState);
 			break;
 			case TRQ_CALIB:
-				calibrateTorquePedal(conf_msgs,true);
+				calibrateTorquePedal(confMsg,true);
 			break;
 			case STEER_CALIB:
-				calibrateSteering(conf_msgs,true);
+				calibrateSteering(confMsg,true);
 			break;
 			
 			case SNAKE_GAME:
@@ -957,7 +1023,7 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 		}
 	}
 	else if (btn->btn_type == LAUNCH_CONTROL) {
-		if (car_state == DRIVE_ENABLED) {
+		if (carState == DRIVE_ENABLED) {
 			//Request Launch control from ECU
 			//Send CAN message
 			can_freeRTOSSendMessage(CAN0,RequestLCInit);
@@ -981,11 +1047,11 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 	
 	
 	else if (btn->btn_type == START) {
-		if ( (car_state != TRACTIVE_SYSTEM_OFF) || (car_state != TRACTIVE_SYSTEM_ON) )  {
+		if ( (carState != TRACTIVE_SYSTEM_OFF) || (carState != TRACTIVE_SYSTEM_ON) )  {
 			// Request shut down
 			can_freeRTOSSendMessage(CAN0, RequestDriveDisable);
 		}
-		else if (car_state == TRACTIVE_SYSTEM_ON) {
+		else if (carState == TRACTIVE_SYSTEM_ON) {
 			//Request car start
 			// If criterias satisfied
 			can_freeRTOSSendMessage(CAN0, RequestDriveEnable);
@@ -993,7 +1059,7 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 		
 		/*if (btn->drive_switch_disable == true) {
 			btn->drive_switch_disable = false;
-			if (car_state == DRIVE_ENABLED) {
+			if (carState == DRIVE_ENABLED) {
 				// Send CAN message to ECU to disable drive
 				 
 				// Cofirmation is handled in control function
@@ -1005,16 +1071,16 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 			bool torque_pedal_not_pressed = false;
 			bool brake_pedal_not_pressed = false;
 			bool bms_discharge = false;
-			if (car_state == TRACTIVE_SYSTEM_ON) {
-				if (getTorquePedalPosition(sensor_real) ) {
+			if (carState == TRACTIVE_SYSTEM_ON) {
+				if (getTorquePedalPosition(sensorPhysicalValue) ) {
 					drive_enable_criterias = false;
 					torque_pedal_not_pressed = true;
 				}
-				if (getBrakePedalPosition(sensor_real)) {
+				if (getBrakePedalPosition(sensorPhysicalValue)) {
 					brake_pedal_not_pressed = true;
 					drive_enable_criterias = false;
 				}
-				if (bmsNotCharged(sensor_real)) {
+				if (bmsNotCharged(sensorPhysicalValue)) {
 					bms_discharge = true;
 					drive_enable_criterias = false;	
 				}	
@@ -1038,7 +1104,7 @@ static void HandleButtonActions(Buttons *btn, SensorRealValue *sensor_real ,Devi
 	btn->btn_type = NONE_BTN;
 }
 
-static void NavigateMenu(DeviceState *device_state, ParameterValue *parameter, ModuleError *error, SensorRealValue *sensor_real) {
+static void NavigateMenu(DeviceState *deviceState, ParameterValue *parameter, ModuleError *error, SensorPhysicalValues *sensorPhysicalValue) {
 	
 	switch (btn.navigation) {
 		case UP:
@@ -1091,22 +1157,22 @@ static void NavigateMenu(DeviceState *device_state, ParameterValue *parameter, M
 
 	switch (menu[selected].current_menu) {
 		case MAIN_SCREEN:
-		DrawMainScreen(sensor_real,20,20,device_state);
+		DrawMainScreen(sensorPhysicalValue,100,100,deviceState);
 		break;
 		case SPEED:
-		DrawSpeedScreen(sensor_real);
+		DrawSpeedScreen(sensorPhysicalValue);
 		break;
 		case SYSTEM_MONITOR:
-		DrawSystemMonitorScreen(error,sensor_real);
+		DrawSystemMonitorScreen(error,sensorPhysicalValue);
 		break;
 		case TEMP_VOLT:
-		DrawTempAndVoltScreen(sensor_real);
+		DrawTempAndVoltScreen(sensorPhysicalValue);
 		break;
 		case MAIN_MENU:
 		DrawMainMenu();
 		break;
 		case DEVICE_STATUS:
-		DrawDeviceStatusMenu(device_state);
+		DrawDeviceStatusMenu(deviceState);
 		break;
 		case ECU_OPTIONS:
 		DrawECUAdjustmentScreen(parameter);
@@ -1126,7 +1192,7 @@ static void NavigateMenu(DeviceState *device_state, ParameterValue *parameter, M
 	}
 }
 
-static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,DeviceState *devices) {
+static void LEDHandler(SensorPhysicalValues *sensorPhysicalValue, ModuleError *error,DeviceState *devices) {
 	if (error->ams_error == true) {
 		pio_setOutput(AMS_LED_PIO,AMS_LED_PIN,PIN_HIGH);
 	}
@@ -1140,7 +1206,7 @@ static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,De
 	else {
 		pio_setOutput(IMD_LED_PIO,IMD_LED_PIN,PIN_LOW);
 	}
-	if ( (sensor_real_value->battery_temperature > BATTERY_TEMP_CRITICAL_HIGH) ) {
+	if ( (sensorPhysicalValue->battery_temperature > BATTERY_TEMP_CRITICAL_HIGH) ) {
 		pio_setOutput(TEMP_LED_PIO,TEMP_LED_PIN,PIN_HIGH);
 	}
 	else {
@@ -1162,7 +1228,7 @@ static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,De
 		pio_setOutput(DEVICE_LED_PIO,DEVICE_LED_PIN,PIN_LOW);
 	}
 	
-	switch (car_state) {
+	switch (carState) {
 		case TRACTIVE_SYSTEM_OFF: 
 			if (xTimerIsTimerActive(TSLedTimer) == pdTRUE) {
 				xTimerStop(TSLedTimer,0);
@@ -1191,7 +1257,7 @@ static void LEDHandler(SensorRealValue *sensor_real_value, ModuleError *error,De
 	}
 }
 
-static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *conf_msg, ModuleError *error, SensorValues *sensor_values,StatusMsg *status,SensorRealValue *sensor_real) {
+static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg, ModuleError *error, SensorValues *sensorValue,StatusMsg *status,SensorPhysicalValues *sensorPhysicalValue) {
 	struct CanMessage txmsg = {
 		.data.u8[0] = 10,
 		.data.u8[1] = 5,
@@ -1205,47 +1271,42 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *conf_ms
 		//Received a Can message over the queue
 		
 		switch (ReceiveMsg.messageID) {
-			case 11:
-				//Temporary testing: Variable confirmation ID
-				setParameterBasedOnConfirmation(parameter);
-				parameter_confirmation_timed_out = false; // Reset the global status flag
-			break;
 			case ID_TRQ_CONF_CH0:
 				switch (ReceiveMsg.data.u8[0]) {
 					case 0x0F:
-						conf_msg->conf_trq_ch0 = TRQ_MIN_CONFIRMED;
+						confMsg->conf_trq_ch0 = TRQ_MIN_CONFIRMED;
 						break;
 					case 0xF0:
-						conf_msg->conf_trq_ch0 = TRQ_MAX_CONFIRMED;
+						confMsg->conf_trq_ch0 = TRQ_MAX_CONFIRMED;
 						break;
 					case 0x00:
-						conf_msg->conf_trq_ch0 = TRQ_NOCALIB;
+						confMsg->conf_trq_ch0 = TRQ_NOCALIB;
 						break;
 				}
 			break;
 			case ID_TRQ_CONF_CH1:
 				switch (ReceiveMsg.data.u8[0]) {
 					case 0x0F:
-						conf_msg->conf_trq_ch0 = TRQ_MIN_CONFIRMED;
+						confMsg->conf_trq_ch0 = TRQ_MIN_CONFIRMED;
 						break;
 					case 0xF0:
-						conf_msg->conf_trq_ch0 = TRQ_MAX_CONFIRMED;
+						confMsg->conf_trq_ch0 = TRQ_MAX_CONFIRMED;
 						break;
 					case 0x00:
-						conf_msg->conf_trq_ch0 = TRQ_NOCALIB;
+						confMsg->conf_trq_ch0 = TRQ_NOCALIB;
 						break;
 				}
 			break;
 			case ID_STEERING_CONF:
 				switch (ReceiveMsg.data.u8[0]) {
 					case 0x0F:
-					conf_msg->conf_steer = STEER_CONF_LEFT;
+					confMsg->conf_steer = STEER_CONF_LEFT;
 					break;
 					case 0xF0:
-					conf_msg->conf_steer = STEER_CONF_RIGHT;
+					confMsg->conf_steer = STEER_CONF_RIGHT;
 					break;
 					case 0x00:
-					conf_msg->conf_steer = STEER_CONF_FAILED;
+					confMsg->conf_steer = STEER_CONF_FAILED;
 					break;
 				}
 			break;
@@ -1255,81 +1316,100 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *conf_ms
 					//TS active
 					status->shut_down_circuit_closed = true;
 					break;
-					case 0x02:
+					case 0x01:
 					//Play RTDS. The timer callback will turn it off after RTDS_DURATION_MS has passed.
 					// It will also send a can message telling the ECU the dash is done with RTDS.
 					xTimerStart(RTDSTimer,200/portTICK_RATE_MS);
 					pio_setOutput(BUZZER_PIO,BUZZER_PIN,PIN_HIGH);
 					break;
-					case 0x0E:
+					case 0x02:
 					//Ready to drive, drive enabled
-					conf_msg->drive_enabled_confirmed = true;
+					confMsg->drive_enabled_confirmed = true;
 					break;
-					case 0x04:
+					case 0x03:
 					//Drive disabled
-					conf_msg->drive_disabled_confirmed = true;
+					confMsg->drive_disabled_confirmed = true;
 					break;
 				}
 			break;
 			case ID_ECU_PARAMETER_CONFIRMED:
-				conf_msg->ECU_parameter_confirmed = true;
-				break;
+				confMsg->ECU_parameter_confirmed = true;
+				if (menu[selected].current_menu == ECU_OPTIONS) {
+					setParameterBasedOnConfirmation(parameter);
+				}
+			break;
 			case ID_IN_ECU_LC:
 				switch (ReceiveMsg.data.u8[0]) {
-					case 1:
+					case 0xF0:
 					//Last year has only lc ready and launch end. Makes more sense with lc request confirmed and lc ready and maybe launch end
 					//Launch ready
-					conf_msg->lc_ready = true;
+					confMsg->lc_ready = true;
 					break;
-					case 2:
+					case 0x0F:
 					// Launch request accepted Starting countdown
-					conf_msg->lc_request_confirmed = true;
+					confMsg->lc_request_confirmed = true;
+					break;
+					case 0x00:
+						confMsg->lc_off = true;
 					break;
 				}
 			break;
-			
-			case ID
-			
+			case ID_IN_ECU_TRACTION_CONTROL:
+				switch (ReceiveMsg.data.u8[0]) {
+					case 0x0F:
+						//ON
+						tractionControlState = TRACTION_CONTROL_ON;
+					break;
+					case 0xF0:
+						//OFF
+						tractionControlState = TRACTION_CONTROL_OFF;
+					break;
+				}
+			break;
+			case ID_IN_ECU_SELECTED_PRESET:
+				selected_preset_file = ReceiveMsg.data.u8[0];
+			break;
+				
 			case ID_BMS_MAX_MIN_VALUES:
-				sensor_real->max_cell_voltage_lsb = ReceiveMsg.data.u8[0];
-				sensor_real->max_cell_voltage_msb = ReceiveMsg.data.u8[1];
+				sensorPhysicalValue->max_cell_voltage_lsb = ReceiveMsg.data.u8[0];
+				sensorPhysicalValue->max_cell_voltage_msb = ReceiveMsg.data.u8[1];
 				
-				sensor_real->min_cell_voltage_lsb = ReceiveMsg.data.u8[2];
-				sensor_real->min_cell_voltage_lsb = ReceiveMsg.data.u8[3];
+				sensorPhysicalValue->min_cell_voltage_lsb = ReceiveMsg.data.u8[2];
+				sensorPhysicalValue->min_cell_voltage_lsb = ReceiveMsg.data.u8[3];
 				
-				sensor_real->max_battery_temperature_lsb = ReceiveMsg.data.u8[4];
-				sensor_real->max_battery_temperature_msb = ReceiveMsg.data.u8[5];
+				sensorPhysicalValue->max_battery_temperature_lsb = ReceiveMsg.data.u8[4];
+				sensorPhysicalValue->max_battery_temperature_msb = ReceiveMsg.data.u8[5];
 				
-				sensor_real->min_battery_temperature_lsb = ReceiveMsg.data.u8[6];
-				sensor_real->min_battery_temperature_msb = ReceiveMsg.data.u8[7];
+				sensorPhysicalValue->min_battery_temperature_lsb = ReceiveMsg.data.u8[6];
+				sensorPhysicalValue->min_battery_temperature_msb = ReceiveMsg.data.u8[7];
 			break;
 			
 			case ID_TORQUE_ENCODER_0_DATA:
-				sensor_real->torque_encoder_ch0 = ReceiveMsg.data.u8[0];
-				break;
+				sensorPhysicalValue->torque_encoder_ch0 = ReceiveMsg.data.u8[0];
+			break;
 				
 			case ID_TORQUE_ENCODER_1_DATA:
-				sensor_real->torque_encoder_ch1 = ReceiveMsg.data.u8[0];
-				break;	
+				sensorPhysicalValue->torque_encoder_ch1 = ReceiveMsg.data.u8[0];
+			break;	
 				
 				
 			case ID_SPEED_FL:
 			case ID_SPEED_FR:
 			case ID_SPEED_RR:
 			case ID_SPEED_RL:
-				break;
+			break;
 			case ID_TEMP_COOLING:
-				sensor_values->temp_sensor_cooling = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
+				sensorValue->temp_sensor_cooling = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
 				break;
 			case ID_TEMP_GEARBOX:
-				sensor_values->temp_sensor_gearbox = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
+				sensorValue->temp_sensor_gearbox = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
 				break;
 			case ID_BRAKE_PRESSURE_FL:
-				sensor_values->brake_pressure_fl = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
+				sensorValue->brake_pressure_fl = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
 				break;
 				//(brk_pres_front-3960)/120)
 			case ID_BRAKE_PRESSURE_FR:
-				sensor_values->brake_pressure_fr = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
+				sensorValue->brake_pressure_fr = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
 				break;
 			case ID_DAMPER_FL:
 			case ID_DAMPER_FR:
@@ -1398,17 +1478,17 @@ static bool trq_ch0_ok = false;
 static bool trq_ch1_ok = false;
 static bool trq_noCalib_ch0 = false;
 static bool trq_noCalib_ch1 = false;
-static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
+static void calibrateTorquePedal(ConfirmationMsgs *confMsg,bool ack_pressed) {
 	
 	
-	switch(trq_calib_state) {
+	switch(torquePedalCalibrationState) {
 		case TRQ_CALIBRATION_OFF:
-			DrawTorqueCalibrationScreen(conf_msgs);
+			DrawTorqueCalibrationScreen(confMsg);
 			if (ack_pressed == true) {
-				conf_msgs->conf_trq_ch0 = TRQ_DEFAULT;
-				conf_msgs->conf_trq_ch1 = TRQ_DEFAULT;
+				confMsg->conf_trq_ch0 = TRQ_DEFAULT;
+				confMsg->conf_trq_ch1 = TRQ_DEFAULT;
 				trq_calib_timed_out = false;
-				trq_calib_state = TRQ_CALIBRATION_WAITING_MAX_CONFIRMATION;
+				torquePedalCalibrationState = TRQ_CALIBRATION_WAITING_MAX_CONFIRMATION;
 				//Send CAN message that max is being calibrated
 				can_freeRTOSSendMessage(CAN0,TorquePedalCalibrationMax);
 				can_freeRTOSSendMessage(CAN1,TorquePedalCalibrationMax);
@@ -1417,7 +1497,7 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 			break;
 		case TRQ_CALIBRATION_WAITING_MAX_CONFIRMATION:
 			if (trq_calib_timed_out == false) {
-				switch (conf_msgs->conf_trq_ch0) {
+				switch (confMsg->conf_trq_ch0) {
 					case TRQ_MAX_CONFIRMED:
 						trq_ch0_ok = true;
 						break;
@@ -1425,7 +1505,7 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 						trq_ch0_ok = true;
 						break;
 				}	
-				switch (conf_msgs->conf_trq_ch1) {
+				switch (confMsg->conf_trq_ch1) {
 					case TRQ_MAX_CONFIRMED:
 						trq_ch1_ok = true;
 						break;
@@ -1434,48 +1514,48 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 						break;
 				}			
 				if (trq_ch0_ok && trq_ch1_ok) {
-					trq_calib_state = TRQ_CALIBRATION_MAX_CONFIRMED;
+					torquePedalCalibrationState = TRQ_CALIBRATION_MAX_CONFIRMED;
 				}
 				else if ( (trq_noCalib_ch0 == true) && (trq_noCalib_ch1 == false) ) {
 					// Ch0 calib error
-					trq_calib_state = TRQ_FAIL_CH0;
+					torquePedalCalibrationState = TRQ_FAIL_CH0;
 				}
 				else if ( (trq_noCalib_ch0 == false) && (trq_noCalib_ch1 == true) ) {
 					// Ch1 calib error
-					trq_calib_state = TRQ_FAIL_CH1;
+					torquePedalCalibrationState = TRQ_FAIL_CH1;
 				}
 				else if (trq_noCalib_ch0 && trq_noCalib_ch1) {
 					//Fail
-					trq_calib_state = TRQ_FAIL_BOTH_CH;
+					torquePedalCalibrationState = TRQ_FAIL_BOTH_CH;
 				}
 			}
 			else {
 				//Timed out
 				if ( (trq_ch0_ok == false) && (trq_ch1_ok == false) ) {
 					//Both timed out
-					trq_calib_state = TRQ_TIMEOUT_BOTH_CH;
+					torquePedalCalibrationState = TRQ_TIMEOUT_BOTH_CH;
 				}
 				else if ( (trq_ch0_ok == true) && (trq_ch1_ok == false) ) {
 					// trq_ch1 timed out
-					trq_calib_state = TRQ_TIMEOUT_CH1;
+					torquePedalCalibrationState = TRQ_TIMEOUT_CH1;
 				}
 				else if ( (trq_ch0_ok == false) && (trq_ch1_ok == true) ) {
 					// Trq_ch0 timed out
-					trq_calib_state = TRQ_TIMEOUT_CH0;
+					torquePedalCalibrationState = TRQ_TIMEOUT_CH0;
 				}
 			}
 		break;
 			
 		case TRQ_CALIBRATION_MAX_CONFIRMED:
-			DrawTorqueCalibrationScreen(conf_msgs);
+			DrawTorqueCalibrationScreen(confMsg);
 			if (ack_pressed == true) {
-				conf_msgs->conf_trq_ch0 = TRQ_DEFAULT; // Reset the confirmation message
-				conf_msgs->conf_trq_ch1 = TRQ_DEFAULT;
+				confMsg->conf_trq_ch0 = TRQ_DEFAULT; // Reset the confirmation message
+				confMsg->conf_trq_ch1 = TRQ_DEFAULT;
 				trq_ch0_ok = false;
 				trq_ch1_ok = false;
 				trq_noCalib_ch0 = false;
 				trq_noCalib_ch1 = false;
-				trq_calib_state = TRQ_CALIBRATION_WAITING_MIN_CONFIRMATION;
+				torquePedalCalibrationState = TRQ_CALIBRATION_WAITING_MIN_CONFIRMATION;
 				// Send CAN message that min torque is being calibrated
 				can_freeRTOSSendMessage(CAN0,TorquePedalCalibrationMin);
 				can_freeRTOSSendMessage(CAN1,TorquePedalCalibrationMin);
@@ -1486,7 +1566,7 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 
 		case TRQ_CALIBRATION_WAITING_MIN_CONFIRMATION:
 			if (trq_calib_timed_out == false) {
-				switch (conf_msgs->conf_trq_ch0) {
+				switch (confMsg->conf_trq_ch0) {
 					case TRQ_MIN_CONFIRMED:
 					trq_ch0_ok = true;
 					break;
@@ -1494,7 +1574,7 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 					trq_ch0_ok = true;
 					break;
 				}
-				switch (conf_msgs->conf_trq_ch1) {
+				switch (confMsg->conf_trq_ch1) {
 					case TRQ_MIN_CONFIRMED:
 					trq_ch1_ok = true;
 					break;
@@ -1505,50 +1585,50 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 				}
 				// Make swithc case with trq0 and tr1 combinged into a 2 bit variable
 				if (trq_ch0_ok && trq_ch1_ok) {
-					trq_calib_state = TRQ_CALIBRATION_MIN_CONFIRMED;
+					torquePedalCalibrationState = TRQ_CALIBRATION_MIN_CONFIRMED;
 				}
 				else if ( (trq_noCalib_ch0 == true) && (trq_noCalib_ch1 == false) ) {
 					// Ch0 calib error
-					trq_calib_state = TRQ_FAIL_CH0;
+					torquePedalCalibrationState = TRQ_FAIL_CH0;
 				}
 				else if ( (trq_noCalib_ch0 == false) && (trq_noCalib_ch1 == true) ) {
 					// Ch1 calib error
-					trq_calib_state = TRQ_FAIL_CH1;
+					torquePedalCalibrationState = TRQ_FAIL_CH1;
 				}
 				else if (trq_noCalib_ch0 && trq_noCalib_ch1) {
 					//Fail
-					trq_calib_state = TRQ_FAIL_BOTH_CH;
+					torquePedalCalibrationState = TRQ_FAIL_BOTH_CH;
 				}
 			}
 			else {
 				//Timed out
 				if ( (trq_ch0_ok == false) && (trq_ch1_ok == false) ) {
 					//Both timed out
-					trq_calib_state = TRQ_TIMEOUT_BOTH_CH;
+					torquePedalCalibrationState = TRQ_TIMEOUT_BOTH_CH;
 				}
 				else if ( (trq_ch0_ok == true) && (trq_ch1_ok == false) ) {
 					// trq_ch1 timed out
-					trq_calib_state = TRQ_TIMEOUT_CH1;
+					torquePedalCalibrationState = TRQ_TIMEOUT_CH1;
 				}
 				else if ( (trq_ch0_ok == false) && (trq_ch1_ok == true) ) {
 					// Trq_ch0 timed out
-					trq_calib_state = TRQ_TIMEOUT_CH0;
+					torquePedalCalibrationState = TRQ_TIMEOUT_CH0;
 				}
 			}
 		break;
 
 		case TRQ_CALIBRATION_MIN_CONFIRMED:
-			DrawTorqueCalibrationScreen(conf_msgs);
+			DrawTorqueCalibrationScreen(confMsg);
 			if (ack_pressed == true) {
 				trq_ch0_ok = false;
 				trq_ch1_ok = false;
 				trq_noCalib_ch0 = false;
 				trq_noCalib_ch1 = false;
-				conf_msgs->conf_trq_ch0 = TRQ_DEFAULT; // Reset the confirmation message
-				conf_msgs->conf_trq_ch1 = TRQ_DEFAULT;
+				confMsg->conf_trq_ch0 = TRQ_DEFAULT; // Reset the confirmation message
+				confMsg->conf_trq_ch1 = TRQ_DEFAULT;
 				
 				trq_calib_timed_out = false; // Reset time out flag
-				trq_calib_state = TRQ_CALIBRATION_OFF;
+				torquePedalCalibrationState = TRQ_CALIBRATION_OFF;
 				selected = MAIN_MENU_POS; // Back to adjustment menu
 			}
 		break;
@@ -1559,17 +1639,17 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 		case TRQ_TIMEOUT_CH0:
 		case TRQ_TIMEOUT_CH1:
 		case TRQ_TIMEOUT_BOTH_CH:
-			DrawTorqueCalibrationScreen(conf_msgs);
+			DrawTorqueCalibrationScreen(confMsg);
 			if (ack_pressed == true) {
-				conf_msgs->conf_trq_ch0 = TRQ_DEFAULT;
-				conf_msgs->conf_trq_ch1 = TRQ_DEFAULT;
+				confMsg->conf_trq_ch0 = TRQ_DEFAULT;
+				confMsg->conf_trq_ch1 = TRQ_DEFAULT;
 				trq_ch0_ok = false;
 				trq_ch1_ok = false;
 				trq_noCalib_ch0 = false;
 				trq_noCalib_ch1 = false;
 				
 				trq_calib_timed_out = false;
-				trq_calib_state = TRQ_CALIBRATION_OFF;
+				torquePedalCalibrationState = TRQ_CALIBRATION_OFF;
 				selected = MAIN_MENU_POS;
 				btn.btn_type = NONE_BTN;
 				btn.unhandledButtonAction = false;
@@ -1577,15 +1657,15 @@ static void calibrateTorquePedal(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 			break;
 	}
 }
-static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
-	switch (steer_calib_state) {
+static void calibrateSteering(ConfirmationMsgs *confMsg,bool ack_pressed) {
+	switch (steeringCalibrationState) {
 		
 		case STEER_C_OFF:
 			DrawSteerCalibScreen();
 			if (ack_pressed) {
-				conf_msgs->conf_steer = STEER_CONF_DEFAULT;
+				confMsg->conf_steer = STEER_CONF_DEFAULT;
 				steer_calib_timed_out = false;
-				steer_calib_state = STEER_C_WAITING_LEFT;
+				steeringCalibrationState = STEER_C_WAITING_LEFT;
 				// Send CAN message that left is calibrated
 				can_freeRTOSSendMessage(CAN0,SteeringCalibrationLeft);
 				can_freeRTOSSendMessage(CAN1,SteeringCalibrationLeft);
@@ -1594,25 +1674,25 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 			break;
 		case STEER_C_WAITING_LEFT:
 			if (steer_calib_timed_out == false) {
-				switch (conf_msgs->conf_steer) {
+				switch (confMsg->conf_steer) {
 					case STEER_CONF_LEFT:
-						steer_calib_state = STEER_C_LEFT_CONFIRMED;
+						steeringCalibrationState = STEER_C_LEFT_CONFIRMED;
 					break;
 					case STEER_CONF_FAILED:
-						steer_calib_state = STEER_C_FAIL;
+						steeringCalibrationState = STEER_C_FAIL;
 					break;
 				}
 			}
 			else if (steer_calib_timed_out == true) {
-				steer_calib_state = STEER_C_TIMEOUT;
+				steeringCalibrationState = STEER_C_TIMEOUT;
 			}
 		break;
 		
 		case STEER_C_LEFT_CONFIRMED:
 			DrawSteerCalibScreen();
 			if (ack_pressed == true) {
-				conf_msgs->conf_steer = STEER_CONF_DEFAULT;
-				steer_calib_state = STEER_C_WAITING_RIGHT;
+				confMsg->conf_steer = STEER_CONF_DEFAULT;
+				steeringCalibrationState = STEER_C_WAITING_RIGHT;
 				steer_calib_timed_out = false;
 				// Send CAN message right is being calibrated
 				can_freeRTOSSendMessage(CAN0,SteeringCalibrationRight);
@@ -1623,25 +1703,25 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 			
 		case STEER_C_WAITING_RIGHT:
 			if (steer_calib_timed_out == false) {
-				switch (conf_msgs->conf_steer) {
+				switch (confMsg->conf_steer) {
 					case STEER_CONF_LEFT:
-						steer_calib_state = STEER_C_RIGHT_CONFIRMED;
+						steeringCalibrationState = STEER_C_RIGHT_CONFIRMED;
 					break;
 					case STEER_CONF_FAILED:
-						steer_calib_state = STEER_C_FAIL;
+						steeringCalibrationState = STEER_C_FAIL;
 					break;
 				}
 			}
 			else if (steer_calib_timed_out == true) {
-				steer_calib_state = STEER_C_TIMEOUT;
+				steeringCalibrationState = STEER_C_TIMEOUT;
 			}
 			break;
 						
 		case STEER_C_RIGHT_CONFIRMED:
 			DrawSteerCalibScreen();
 			if (ack_pressed == true) {
-				conf_msgs->conf_steer = STEER_CONF_DEFAULT;
-				steer_calib_state = STEER_C_OFF;
+				confMsg->conf_steer = STEER_CONF_DEFAULT;
+				steeringCalibrationState = STEER_C_OFF;
 				selected = MAIN_MENU_POS;
 				steer_calib_timed_out = false;
 			}
@@ -1649,8 +1729,8 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 		case STEER_C_FAIL:
 			DrawSteerCalibScreen();
 			if (ack_pressed == true) {
-				conf_msgs->conf_steer = STEER_CONF_DEFAULT;
-				steer_calib_state = STEER_C_OFF;
+				confMsg->conf_steer = STEER_CONF_DEFAULT;
+				steeringCalibrationState = STEER_C_OFF;
 				selected = MAIN_MENU_POS;
 				steer_calib_timed_out = false;	
 			}
@@ -1658,8 +1738,8 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 		case STEER_C_TIMEOUT:
 			DrawSteerCalibScreen();
 			if (ack_pressed == true) {
-				conf_msgs->conf_steer = STEER_CONF_DEFAULT;
-				steer_calib_state = STEER_C_OFF;
+				confMsg->conf_steer = STEER_CONF_DEFAULT;
+				steeringCalibrationState = STEER_C_OFF;
 				selected = MAIN_MENU_POS;
 				steer_calib_timed_out = false;
 			}
@@ -1668,21 +1748,21 @@ static void calibrateSteering(ConfirmationMsgs *conf_msgs,bool ack_pressed) {
 }
 
 
-static EPedalPosition getTorquePedalPosition(SensorRealValue *sensor_real) {
-	if ( (sensor_real->torque_encoder_ch0 < TORQUE_PEDAL_THRESHOLD ) && (sensor_real->torque_encoder_ch1 < TORQUE_PEDAL_THRESHOLD) ) {
+static EPedalPosition getTorquePedalPosition(SensorPhysicalValues *sensorPhysicalValue) {
+	if ( (sensorPhysicalValue->torque_encoder_ch0 < TORQUE_PEDAL_THRESHOLD ) && (sensorPhysicalValue->torque_encoder_ch1 < TORQUE_PEDAL_THRESHOLD) ) {
 		return PEDAL_IN;
 	}
 	else return PEDAL_OUT;
 }
-static EPedalPosition getBrakePedalPosition(SensorRealValue *sensor_real) {
-	if (sensor_real->brake_pedal_actuation < BRAKE_PEDAL_THRESHOLD) { //brakePedalEngagedThreshold) {
+static EPedalPosition getBrakePedalPosition(SensorPhysicalValues *sensorPhysicalValue) {
+	if (sensorPhysicalValue->brake_pedal_actuation < BRAKE_PEDAL_THRESHOLD) { //brakePedalEngagedThreshold) {
 		return PEDAL_IN;
 	}
 	else return PEDAL_OUT;
 }
-static bool bmsNotCharged(SensorRealValue *sensor_real) {
+static bool bmsNotCharged(SensorPhysicalValues *sensorPhysicalValue) {
 	uint8_t bms_discharge_threshold = 50;
-	if ( sensor_real->bms_discharge_limit < bms_discharge_threshold ) {
+	if ( sensorPhysicalValue->bms_discharge_limit < bms_discharge_threshold ) {
 		return false;
 	}
 	else return true;
@@ -1713,7 +1793,7 @@ static void vMenuUpdateCallback(TimerHandle_t pxTimer) {
 	switch (menu_id) {
 		case 0: // Main Screen
 		menuUpdate.update_menu = true;
-		//xTimerReset(timer_menuUpdate[0],0);
+		//xTimerReset(timerMenuUpdate[0],0);
 		break;
 		case 1:
 		menuUpdate.update_procedures = true;
@@ -1730,7 +1810,7 @@ static void vTSLedTimerCallback(TimerHandle_t pxtimer){
 	}
 }
 
-static void init_sensorRealValue_struct(SensorRealValue *sensorReal) {
+static void initSensorRealValueStruct(SensorPhysicalValues *sensorReal) {
 	sensorReal->torque_encoder_ch0 = 0;
 	sensorReal->torque_encoder_ch1 = 0;
 	sensorReal->brake_pressure_rear = 0;
@@ -1758,27 +1838,28 @@ static void init_sensorRealValue_struct(SensorRealValue *sensorReal) {
 	sensorReal->bms_discharge_limit = 0;
 	sensorReal->brake_pedal_actuation = 0;
 }
-static void init_sensor_value_struct(SensorValues *sensor_values) {
-	sensor_values->bms_discharge_limit = 0;
-	sensor_values->brake_pressure_fr = 0;
-	sensor_values->brake_pressure_fl = 0;
-	sensor_values->temp_sensor_cooling = 0;
-	sensor_values->temp_sensor_gearbox = 0;
+static void initSensorValueStruct(SensorValues *sensorValue) {
+	sensorValue->bms_discharge_limit = 0;
+	sensorValue->brake_pressure_fr = 0;
+	sensorValue->brake_pressure_fl = 0;
+	sensorValue->temp_sensor_cooling = 0;
+	sensorValue->temp_sensor_gearbox = 0;
 
 }
-static void init_status_struct(StatusMsg *status) {
+static void initStatusStruct(StatusMsg *status) {
 	status->shut_down_circuit_closed = false;
 }
-static void init_conf_msgs_struct(ConfirmationMsgs *conf_msgs) {
-	conf_msgs->drive_disabled_confirmed = false;
-	conf_msgs->drive_enabled_confirmed = false;
-	conf_msgs->lc_request_confirmed = false;
-	conf_msgs->lc_ready = false;
-	conf_msgs->conf_trq_ch0 = TRQ_DEFAULT;
-	conf_msgs->conf_trq_ch1 = TRQ_DEFAULT;
-	conf_msgs->ECU_parameter_confirmed = false;
+static void initConfirmationMessagesStruct(ConfirmationMsgs *confMsg) {
+	confMsg->drive_disabled_confirmed	= false;
+	confMsg->drive_enabled_confirmed	= false;
+	confMsg->lc_request_confirmed		= false;
+	confMsg->lc_ready					= false;
+	confMsg->lc_off						= false;
+	confMsg->conf_trq_ch0				= TRQ_DEFAULT;
+	confMsg->conf_trq_ch1				= TRQ_DEFAULT;
+	confMsg->ECU_parameter_confirmed	= false;
 	}
-static void init_error_struct(ModuleError *error) {
+static void initErrorMessagesStruct(ModuleError *error) {
 	
 	error->ams_error = false;
 	error->imd_error = false;
@@ -1786,13 +1867,13 @@ static void init_error_struct(ModuleError *error) {
 	error->bms_fault   = 0;
 	error->bms_warning = 0;
 }
-static void init_parameter_struct(ParameterValue *parameter) {
+static void initParameterStruct(ParameterValue *parameter) {
 	parameter->min_torque = 0;
 	parameter->torque = 50;
 	parameter->confirmed_torque = 50;
 	parameter->max_torque = 100;
 	
-	parameter->confirmed_kers_value = 0;
+	parameter->confirmed_kers_value = 5;
 	parameter->min_kers_value = 0;
 	parameter->max_kers_value = 20;
 	parameter->kers_value = 10;
@@ -1832,20 +1913,36 @@ static void setParameterBasedOnConfirmation(ParameterValue *parameter) {
 				parameter->confirmed_torque = parameter->torque;
 			}
 		break;	
+		case KERS_SETTING:
+			if (parameter_confirmation_timed_out == true) {
+				parameter->kers_value = parameter->confirmed_kers_value;
+			}
+			else {
+				parameter->confirmed_kers_value = parameter->kers_value;
+			}
+		break;
+		case TRACTION_CONTROL_SETTING:
+			if (parameter_confirmation_timed_out == true) {
+				parameter->traction_control_value = parameter->confirmed_traction_control_value;
+			}
+			else {
+				parameter->confirmed_traction_control_value = parameter->traction_control_value;
+			}
+		break;
 	}
 }
 
 
 
 static void createAndStartMenuUpdateTimers() {
-	timer_menuUpdate[0] = xTimerCreate("MainScreen",100/portTICK_RATE_MS, pdTRUE, (void *) 0 ,vMenuUpdateCallback);
-	timer_menuUpdate[1] = xTimerCreate("procedure",50/portTICK_RATE_MS, pdTRUE, (void *) 1 ,vMenuUpdateCallback);
-	xTimerStart(timer_menuUpdate[0],0);
-	xTimerStart(timer_menuUpdate[1],0);
-// 	if (timer_menuUpdate[0] == NULL) {
+	timerMenuUpdate[0] = xTimerCreate("MainScreen",100/portTICK_RATE_MS, pdTRUE, (void *) 0 ,vMenuUpdateCallback);
+	timerMenuUpdate[1] = xTimerCreate("procedure",50/portTICK_RATE_MS, pdTRUE, (void *) 1 ,vMenuUpdateCallback);
+	xTimerStart(timerMenuUpdate[0],0);
+	xTimerStart(timerMenuUpdate[1],0);
+// 	if (timerMenuUpdate[0] == NULL) {
 // 		
 // 	}
-// 	else if (xTimerStart(timer_menuUpdate[0],0) != pdPASS) {
+// 	else if (xTimerStart(timerMenuUpdate[0],0) != pdPASS) {
 // 		
 // 	}
 }
@@ -1853,7 +1950,7 @@ static void createAndStartMenuUpdateTimers() {
 //***********************************************************************************
 //------------------------------------CALCULATION FUNCTIONS-------------------------//
 //***********************************************************************************
-static void sensorValueToRealValue(SensorValues *sensor_values,SensorRealValue *sensor_real ) {
+static void sensorValueToRealValue(SensorValues *sensorValue,SensorPhysicalValues *sensorPhysicalValue ) {
 	//Formulas for converting raw sensor data to useful data here
 }
 
@@ -1861,57 +1958,67 @@ static void sensorValueToRealValue(SensorValues *sensor_values,SensorRealValue *
 //------------------------------------DRAWING FUNCTIONS----------------------------//
 //***********************************************************************************
 
-static void DrawMainScreen(SensorRealValue *sensor,uint8_t low_volt, uint8_t high_volt,DeviceState *devices) {
+static void DrawMainScreen(SensorPhysicalValues *sensor,uint8_t low_volt, uint8_t high_volt,DeviceState *devices) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
+	uint8_t text_font = 21;
 	DrawHighVoltageSymbol();
 	cmd(COLOR_RGB(255,255, 255));
-	cmd_text(2,10,23,OPT_FLAT,"TRACTIVE SYSTEM");
-	cmd_text(2,40,23,OPT_FLAT,"DRIVE ENABLE");
-	cmd_text(2,70,23,OPT_FLAT,"LAUNCH CONTROL");
-	cmd_text(2,100,23,OPT_FLAT,"DEVICES");
+	cmd_text(15,10,text_font,OPT_FLAT,"TRACTIVE SYSTEM");
+	cmd_text(15,55,text_font,OPT_FLAT,"DRIVE ENABLE");
+	cmd_text(15,100,text_font,OPT_FLAT, "TRACTION CONTROL");
+	cmd_text(15,145,text_font,OPT_FLAT,"LAUNCH CONTROL");
+	//cmd_text(2,100,23,OPT_FLAT,"DEVICES");
 	
-	switch (car_state) {
+	
+	switch (carState) {
 		case TRACTIVE_SYSTEM_OFF:
 			cmd(COLOR_RGB(255,0,0));
-			cmd_text(190,10,23,OPT_FLAT,"OFF"); // TS OFF
-			cmd_text(190,40,23,OPT_FLAT,"OFF"); // Drive enable OFF
-			cmd_text(190,70,23,OPT_FLAT, "OFF"); // Launch control
+			cmd_text(190,10,text_font,OPT_FLAT,"OFF"); // TS OFF
+			cmd_text(190,55,text_font,OPT_FLAT,"OFF"); // Drive enable OFF
+			cmd_text(190,145,text_font,OPT_FLAT, "OFF"); // Launch control
 			break;
 		case TRACTIVE_SYSTEM_ON:
 			cmd(COLOR_RGB(0,255,0));
-			cmd_text(190,10,23,OPT_FLAT,"ON"); // TS ON
+			cmd_text(190,10,text_font,OPT_FLAT,"ON"); // TS ON
 			cmd(COLOR_RGB(255,0,0));
-			cmd_text(190,40,23,OPT_FLAT,"OFF"); // Drive enable OFF
-			cmd_text(190,70,23,OPT_FLAT, "OFF"); // Launch control
+			cmd_text(190,55,text_font,OPT_FLAT,"OFF"); // Drive enable OFF
+			cmd_text(190,145,text_font,OPT_FLAT, "OFF"); // Launch control
 			break;
 		case DRIVE_ENABLED:
 			cmd(COLOR_RGB(0,255,0));
-			cmd_text(190,10,23,OPT_FLAT,"ON"); // TS ON
-			cmd_text(190,40,23,OPT_FLAT,"ON"); // Drive enable ON
+			cmd_text(190,10,text_font,OPT_FLAT,"ON"); // TS ON
+			cmd_text(190,55,text_font,OPT_FLAT,"ON"); // Drive enable ON
 			cmd(COLOR_RGB(255,0,0));
-			cmd_text(190,70,23,OPT_FLAT, "OFF"); // Launch control
+			cmd_text(190,145,text_font,OPT_FLAT, "OFF"); // Launch control
 			break;
 		case LC_ARMED:
 			cmd(COLOR_RGB(0,255,0));
-			cmd_text(190,10,23,OPT_FLAT,"ON"); // TS ON
-			cmd_text(190,40,23,OPT_FLAT,"ON"); // Drive enable ON
-			cmd_text(190,70,23,OPT_FLAT, "ARMED"); // Launch control
+			cmd_text(190,10,text_font,OPT_FLAT,"ON"); // TS ON
+			cmd_text(190,55,text_font,OPT_FLAT,"ON"); // Drive enable ON
+			cmd_text(190,145,text_font,OPT_FLAT, "ON"); // Launch control
 			break;
 	}
+	if (tractionControlState == TRACTION_CONTROL_ON) {
+		cmd(COLOR_RGB(0,255,0));
+		cmd_text(190,100,text_font,OPT_FLAT, "ON");
+	}
+	else {
+		cmd(COLOR_RGB(255,0,0));
+		cmd_text(190,100,text_font,OPT_FLAT, "OFF");
+	}
 	//Modules ok, battery temp and motor temp
-	if (checkDeviceStatus(devices)) {
+	/*if (checkDeviceStatus(devices)) {
 		cmd(COLOR_RGB(0,250,0));
 		cmd_text(190,10,23,OPT_FLAT,"OK");
 	}
 	else {
 		cmd(COLOR_RGB(250,0,0));
 		cmd_text(190,100,23,OPT_FLAT,"NR");
-	}
-	
+	}*/
 	
 	cmd(BEGIN(LINE_STRIP));
-	cmd(COLOR_RGB(250,250,0)); // Make the main battery rectangle grey
+	cmd(COLOR_RGB(60,80,110)); 
 	cmd(LINE_WIDTH(2*16));
 	cmd(VERTEX2F(245*16, 0));
 	cmd(VERTEX2F(480*16, 0));
@@ -1926,10 +2033,36 @@ static void DrawMainScreen(SensorRealValue *sensor,uint8_t low_volt, uint8_t hig
 
 	DrawLowVoltageBattery(low_volt);
 	DrawHighVoltageBattery(high_volt);
+	DrawParallellogramMainScreen();
 	
 	cmd(DISPLAY()); // display the image
 	cmd(CMD_SWAP);
 	cmd_exec();
+}
+
+static void DrawParallellogramMainScreen() {
+	uint16_t x_pos = 2;
+	uint8_t x_shift = 10;
+	uint8_t y_pos = 1;
+	uint8_t y_shift = 35;
+	uint8_t x_width = 225;
+	uint8_t y_spacing = 45;
+	
+	cmd(LINE_WIDTH(2*16));
+	cmd(COLOR_RGB(60,80,110));
+	for (uint8_t i = 0; i < 4; i++) {
+		cmd(BEGIN(LINE_STRIP));
+		cmd(VERTEX2F( (x_pos+x_shift)*16,(y_pos+y_shift+y_spacing*i)*16));
+		cmd(VERTEX2F(x_pos*16,(y_pos+y_spacing*i)*16));
+		cmd(VERTEX2F((x_pos+x_width)*16, (y_pos+y_spacing*i)*16));
+		cmd(VERTEX2F((x_pos+x_width+x_shift)*16,(y_pos + y_shift+y_spacing*i)*16));
+		cmd(VERTEX2F((x_pos+x_shift)*16,(y_pos+y_shift+y_spacing*i)*16));
+	}
+// 	cmd(VERTEX2F( (x_pos+x_shift)*16,(y_pos+y_shift)*16));
+// 	cmd(VERTEX2F(x_pos*16,y_pos*16));
+// 	cmd(VERTEX2F((x_pos+x_width)*16,y_pos*16));
+// 	cmd(VERTEX2F((x_pos+x_width+x_shift)*16,(y_pos + y_shift)*16));
+// 	cmd(VERTEX2F((x_pos+x_shift)*16,(y_pos+y_shift)*16));	
 }
 static void DrawLowVoltageBattery(uint8_t battery_left_percent) {
 	uint8_t battery_size = 170;
@@ -1968,8 +2101,8 @@ static void DrawLowVoltageBattery(uint8_t battery_left_percent) {
 	cmd(VERTEX2II(x_top, y_start,0,0)); // Top left coordinates
 	cmd(VERTEX2II(x_bottom,battery_size + y_start_pos, 0,0)); // Bottom rightcoordinates
 	cmd(COLOR_RGB(255,255,255));
-	cmd_number(x_center_text, y_center_text, 31, OPT_CENTER, battery_left_percent );
-	cmd_text(x_center_text+35, y_center_text, 31, OPT_CENTER,"%");
+	cmd_number(x_center_text-15, y_center_text, 30, OPT_CENTER, battery_left_percent );
+	cmd_text(x_center_text+30, y_center_text, 30, OPT_CENTER,"%");
 	cmd(COLOR_RGB(255,255,0));
 	cmd_text(x_center_text, 235, 31, OPT_CENTER,"GLV");
 }
@@ -2016,14 +2149,15 @@ static void DrawHighVoltageBattery(uint8_t battery_left_percent) {
 	cmd(VERTEX2II(x_top, y_start,0,0)); // Top left coordinates
 	cmd(VERTEX2II(x_bottom,battery_size + y_start_pos, 0,0)); // Bottom rightcoordinates
 	cmd(COLOR_RGB(255,255,255));
-	cmd_number(x_center_text, y_center_text, 31, OPT_CENTER, battery_left_percent );
-	cmd_text(x_center_text+35, y_center_text, 31, OPT_CENTER, "%");
+	cmd_number(x_center_text-15, y_center_text, 30, OPT_CENTER, battery_left_percent );
+	cmd_text(x_center_text+30, y_center_text, 30, OPT_CENTER,"%");
+	//cmd_text(x_center_text+35, y_center_text, 31, OPT_CENTER, "%");
 	//cmd(DISPLAY()); // display the image
 	//cmd(CMD_SWAP);
 	//cmd_exec();
 }
 
-static void DrawSpeedScreen(SensorRealValue *sensor_real) {
+static void DrawSpeedScreen(SensorPhysicalValues *sensorPhysicalValue) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 	cmd_text(240,140,31,OPT_CENTER,"120");
@@ -2031,7 +2165,7 @@ static void DrawSpeedScreen(SensorRealValue *sensor_real) {
 	cmd(CMD_SWAP);
 	cmd_exec();
 }
-static void DrawSystemMonitorScreen(ModuleError *error,SensorRealValue *val) {
+static void DrawSystemMonitorScreen(ModuleError *error,SensorPhysicalValues *val) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 	
@@ -2074,7 +2208,7 @@ static void DrawSystemMonitorScreen(ModuleError *error,SensorRealValue *val) {
 	cmd_exec();
 	
 }
-static void DrawTempAndVoltScreen(SensorRealValue *tempvolt) {
+static void DrawTempAndVoltScreen(SensorPhysicalValues *tempvolt) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 	cmd(COLOR_RGB(255,255,0));
@@ -2235,8 +2369,9 @@ static void DrawMainMenu() {
 		if ( pos == selected) {
 			
 			cmd(BEGIN(RECTS));
-			cmd(COLOR_RGB(255,255,20)); // Make the main battery rectangle grey
-			cmd(LINE_WIDTH(16*5));
+			cmd(COLOR_RGB(255,255,20));
+			//cmd(COLOR_RGB(70,50,110));
+			cmd(LINE_WIDTH(16*1));
 			//cmd_fgcolor(0xffff33);
 			//cmd(COLOR_RGB(0,0,0));
 			cmd(VERTEX2F(x_position*16,y_position*16));
@@ -2312,7 +2447,8 @@ static void DrawAdjustmentMenu() {
 	pos = pos +1;
 	for (pos; pos <= end_position; pos ++) {
 		if ( pos == selected) {
-			cmd_fgcolor(0xb9b900);
+			//cmd_fgcolor(0xb9b900);
+			cmd_fgcolor(0x322984);
 			cmd(COLOR_RGB(0,0,0));
 			cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
 			cmd(COLOR_RGB(255,255,255));
@@ -2374,11 +2510,11 @@ static void DrawECUAdjustmentScreen(ParameterValue *parameter) {
 	//Knob : fgcolor
 	//Left of knob : COLOR_RGB
 	//Right of knob : bgcolor
-	uint32_t color_right = 0x0;
+	uint32_t color_right = 0x605F69;
 	uint32_t color_knob  = 0x0000FF;
 	//static void DrawParallellogram(uint16_t y_top_left);
 	
-
+	cmd(LINE_WIDTH(16*2));
 	for(variable_pos; variable_pos <= end_variable_pos; variable_pos ++) {
 		switch (menu[variable_pos].current_setting) {
 			case TORQUE_SETTING:
@@ -2436,10 +2572,10 @@ static void DrawECUAdjustmentScreen(ParameterValue *parameter) {
 					cmd(VERTEX2F(470*16,(80+shape_spacing)*16));
 					cmd(VERTEX2F(25*16,(80+shape_spacing)*16));
 				}
-				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,parameter->torque,100);
+				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,parameter->kers_value,parameter->max_kers_value);
 				cmd(COLOR_RGB(255,255,255));
 				//cmd(COLOR_RGB(255,0,0));
-				cmd_number(425,y_slider_position +4,num_font_size,OPT_CENTER,parameter->torque);
+				cmd_number(425,y_slider_position +4,num_font_size,OPT_CENTER,parameter->kers_value);
 				break;			
 			break;
 			
@@ -2469,12 +2605,11 @@ static void DrawECUAdjustmentScreen(ParameterValue *parameter) {
 					cmd(VERTEX2F(25*16,(80+shape_spacing*2)*16));
 				}
 				if ( parameter->traction_control_value == 0) {
-					cmd_text(360,190,25,OPT_CENTER,"OFF");
+					cmd_text(320,175,24,OPT_CENTER,"OFF");
 				}
 				else {
-					cmd_text(360,190,25,OPT_CENTER,"ON");
+					cmd_text(320,175,24,OPT_CENTER,"ON");
 				}
-			
 			break;
 		}	
 		y_slider_position += vertical_slider_spacing;
@@ -2483,7 +2618,7 @@ static void DrawECUAdjustmentScreen(ParameterValue *parameter) {
 	cmd(CMD_SWAP);
 	cmd_exec();
 }
-static void DrawDeviceStatusMenu(DeviceState *device_state) {
+static void DrawDeviceStatusMenu(DeviceState *deviceState) {
 	uint8_t bar_len = 100;
 	// Title
 	cmd(CMD_DLSTART);
@@ -2491,7 +2626,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 	cmd_text(236, 20, 29, OPT_CENTER, "Device Status");
 	
 	// COLUMN 1
-	switch (device_state->TRQ_0) {
+	switch (deviceState->TRQ_0) {
 		case ALIVE:
 			cmd(COLOR_RGB(0,0,0));
 			cmd_fgcolor(0x00FF00);
@@ -2508,7 +2643,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 			cmd_button(70, 40, bar_len, 25, 26, OPT_CENTER, "TRQ0");
 		break;
 	}
-	switch (device_state->TRQ_1) {
+	switch (deviceState->TRQ_1) {
 		case ALIVE:
 			cmd(COLOR_RGB(0,0,0));
 			cmd_fgcolor(0x00FF00);
@@ -2525,7 +2660,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 			cmd_button(70, 70, bar_len, 25, 26, OPT_CENTER, "TRQ1");
 		break;
 	}
-	if (device_state->IMU == ALIVE) {
+	if (deviceState->IMU == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(70, 100, bar_len, 25, 26, OPT_CENTER, "IMU");
@@ -2535,7 +2670,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_fgcolor(0xFF0000);
 		cmd_button(70, 100, bar_len, 25, 26, OPT_CENTER, "IMU");
 	}
-	if (device_state->ECU == ALIVE) {
+	if (deviceState->ECU == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(70, 130, bar_len, 25, 26, OPT_CENTER, "ECU");
@@ -2546,7 +2681,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_button(70, 130, bar_len, 25, 26, OPT_CENTER, "ECU");
 	}
 	
-	if (device_state->TEL == ALIVE) {
+	if (deviceState->TEL == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(70, 160, bar_len, 25, 26, OPT_CENTER, "TEL");
@@ -2556,7 +2691,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_fgcolor(0xFF0000);
 		cmd_button(70, 160, bar_len, 25, 26, OPT_CENTER, "TEL");
 	}
-	if (device_state->GLVBMS == ALIVE) {
+	if (deviceState->GLVBMS == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(70, 190, bar_len, 25, 26, OPT_CENTER, "GLVBMS");
@@ -2568,7 +2703,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 	}
 	//END COLUMN 1
 	// COLUMN 2
-	if (device_state->INV == ALIVE) {
+	if (deviceState->INV == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(190, 70, bar_len, 25, 26, OPT_CENTER, "INV");
@@ -2579,7 +2714,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_button(190, 70, bar_len, 25, 26, OPT_CENTER, "INV");
 	}
 	
-	if (device_state->STEER_POS == ALIVE) {
+	if (deviceState->STEER_POS == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(190, 100, bar_len, 25, 26, OPT_CENTER, "STEER POS");
@@ -2590,7 +2725,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_button(190, 100, bar_len, 25, 26, OPT_CENTER, "STEER POS");
 	}
 	
-	if (device_state->IMD == ALIVE) {
+	if (deviceState->IMD == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(190, 130, bar_len, 25, 26, OPT_CENTER, "IMD");
@@ -2600,7 +2735,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_fgcolor(0xFF0000);
 		cmd_button(190, 130, bar_len, 25, 26, OPT_CENTER, "IMD");
 	}
-	if (device_state->FAN == ALIVE) {
+	if (deviceState->FAN == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(190, 160, bar_len, 25, 26, OPT_CENTER, "FAN");
@@ -2611,7 +2746,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_button(190, 160, bar_len, 25, 26, OPT_CENTER, "FAN");
 	}
 	
-	if (device_state->BSPD == ALIVE) {
+	if (deviceState->BSPD == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(190, 190, bar_len, 25, 26, OPT_CENTER, "BSPD");
@@ -2624,7 +2759,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 	
 	// END COLUMN 2
 	// COLUMN 3
-	if (device_state->ADC_FL == ALIVE) {
+	if (deviceState->ADC_FL == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(310, 70, bar_len, 25, 26, OPT_CENTER, "ADC_FL");
@@ -2634,7 +2769,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_fgcolor(0xFF0000);
 		cmd_button(310, 70, bar_len, 25, 26, OPT_CENTER, "ADC_FL");
 	}
-	if (device_state->ADC_FR == ALIVE) {
+	if (deviceState->ADC_FR == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(310, 100, bar_len, 25, 26, OPT_CENTER, "ADC_FR");
@@ -2644,7 +2779,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_fgcolor(0xFF0000);
 		cmd_button(310, 100, bar_len, 25, 26, OPT_CENTER, "ADC_FR");
 	}
-	if (device_state->ADC_RR == ALIVE) {
+	if (deviceState->ADC_RR == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(310, 130, bar_len, 25, 26, OPT_CENTER, "ADC_RR");
@@ -2654,7 +2789,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_fgcolor(0xFF0000);
 		cmd_button(310, 130, bar_len, 25, 26, OPT_CENTER, "ADC_RR");
 	}
-	if (device_state->ADC_RL == ALIVE) {
+	if (deviceState->ADC_RL == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(310, 160, bar_len, 25, 26, OPT_CENTER, "ADC_RL");
@@ -2665,7 +2800,7 @@ static void DrawDeviceStatusMenu(DeviceState *device_state) {
 		cmd_button(310, 160, bar_len, 25, 26, OPT_CENTER, "ADC_RL");
 	}
 	
-	if (device_state->BMS == ALIVE) {
+	if (deviceState->BMS == ALIVE) {
 		cmd(COLOR_RGB(0,0,0));
 		cmd_fgcolor(0x00FF00);
 		cmd_button(310, 190, bar_len, 25, 26, OPT_CENTER, "BMS");
@@ -2692,34 +2827,32 @@ static void DrawDriveEnableWarning(bool torque_pedal, bool brake_pedal, bool bms
 		cmd_text(240,100,29,OPT_CENTER,"REMOVE FOOT FROM TORQUE PEDAL BEFORE ENABLING DRIVE" );
 		cmd_text(240,130,29,OPT_CENTER,"PRESS BRAKE PEDAL BEFORE ENABLING DRIVE" );
 		cmd_text(240,160,29,OPT_CENTER,"WAIT FOR BMS DISCHARGE LIMIT BEFORE ENABLING DRIVE" );
-		cmd_text(240,190,29,OPT_CENTER,"TURN DRIVE ENABLE SWITCH OFF AND PRESS ACKNOWLEDGE TO TRY AGAIN" );
 	}
 	else if (torque_pedal && !brake_pedal && !bms_discharge) {
 		cmd_text(240,100,29,OPT_CENTER,"REMOVE FOOT FROM TORQUE PEDAL BEFORE ENABLING DRIVE" );
-		cmd_text(240,190,29,OPT_CENTER,"TURN DRIVE ENABLE SWITCH OFF AND PRESS ACKNOWLEDGE TO TRY AGAIN" );
+		
 	}
 	else if (brake_pedal && !torque_pedal && !bms_discharge) {
 		cmd_text(240,130,29,OPT_CENTER,"PRESS BRAKE PEDAL BEFORE ENABLING DRIVE" );
-		cmd_text(240,190,29,OPT_CENTER,"TURN DRIVE ENABLE SWITCH OFF AND PRESS ACKNOWLEDGE TO TRY AGAIN" );
+		
 	}
 	else if (bms_discharge && !torque_pedal && !brake_pedal) {
 		cmd_text(240,160,29,OPT_CENTER,"WAIT FOR BMS DISCHARGE LIMIT BEFORE ENABLING DRIVE" );
-		cmd_text(240,190,29,OPT_CENTER,"TURN DRIVE ENABLE SWITCH OFF AND PRESS ACKNOWLEDGE TO TRY AGAIN" );
+		
 	}
 	else if (bms_discharge && torque_pedal && !brake_pedal) {
 		cmd_text(240,100,29,OPT_CENTER,"REMOVE FOOT FROM TORQUE PEDAL BEFORE ENABLING DRIVE" );
 		cmd_text(240,160,29,OPT_CENTER,"WAIT FOR BMS DISCHARGE LIMIT BEFORE ENABLING DRIVE" );
-		cmd_text(240,190,29,OPT_CENTER,"TURN DRIVE ENABLE SWITCH OFF AND PRESS ACKNOWLEDGE TO TRY AGAIN" );
+	
 	}
 	else if (bms_discharge && brake_pedal && !torque_pedal) {
 		cmd_text(240,130,29,OPT_CENTER,"PRESS BRAKE PEDAL BEFORE ENABLING DRIVE" );
 		cmd_text(240,160,29,OPT_CENTER,"WAIT FOR BMS DISCHARGE LIMIT BEFORE ENABLING DRIVE" );
-		cmd_text(240,190,29,OPT_CENTER,"TURN DRIVE ENABLE SWITCH OFF AND PRESS ACKNOWLEDGE TO TRY AGAIN" );
+		
 	}
 	else if (brake_pedal && torque_pedal && !bms_discharge) {
 		cmd_text(240,100,29,OPT_CENTER,"REMOVE FOOT FROM TORQUE PEDAL BEFORE ENABLING DRIVE" );
 		cmd_text(240,130,29,OPT_CENTER,"PRESS BRAKE PEDAL BEFORE ENABLING DRIVE" );
-		cmd_text(240,190,29,OPT_CENTER,"TURN DRIVE ENABLE SWITCH OFF AND PRESS ACKNOWLEDGE TO TRY AGAIN" );
 	}
 	cmd(DISPLAY()); // display the image
 	cmd(CMD_SWAP);
@@ -2729,13 +2862,13 @@ static void DrawLaunchControlProcedure() {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 	
-	if (car_state == LC_PROCEDURE) {
+	if (carState == LC_PROCEDURE) {
 		cmd_text(5,20,27,OPT_FLAT, "LAUNCH CONTROL REQUEST ACCEPTED");
 		//cmd_text(5,50,30,OPT_FLAT, "KEEP THE TORQUE PEDAL PUSHED IN");
 		cmd_text(5,80,27,OPT_FLAT, "TO START COUNTDOWN PRESS ACKNOWLEDGE BUTTON");
 		cmd_text(5,130,27,OPT_FLAT, "TO ABORT LAUNCH CONTROL PUSH THE BRAKES IN");
 	}
-	else if (car_state == LC_COUNTDOWN) {
+	else if (carState == LC_COUNTDOWN) {
 		if (lc_timer_count == 1) {
 			cmd_text(240,130,31,OPT_CENTER,"5");
 		}
@@ -2752,18 +2885,18 @@ static void DrawLaunchControlProcedure() {
 			cmd_text(240,130,31,OPT_CENTER,"1");
 		}
 	}
-	else if (car_state == LC_ARMED) {
+	else if (carState == LC_ARMED) {
 		cmd_text(240,130,27,OPT_CENTER, "LAUNCH CONTROL IS ARMED. PUSH TORQUE PEDAL TO LAUNCH");
 	}
 	cmd(DISPLAY()); // display the image
 	cmd(CMD_SWAP);
 	cmd_exec();
 }
-static void DrawTorqueCalibrationScreen(ConfirmationMsgs *conf_msg) {
+static void DrawTorqueCalibrationScreen(ConfirmationMsgs *confMsg) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 	
-	switch (trq_calib_state) {
+	switch (torquePedalCalibrationState) {
 		case TRQ_CALIBRATION_OFF:
 			cmd_text(5,20,28,OPT_FLAT,"1: PUSH AND HOLD THE TORQUE PEDAL IN");
 			cmd_text(5,100,30,OPT_FLAT,"2: PUSH THE ACKNOWLEDGE");
@@ -2829,7 +2962,7 @@ static void DrawSteerCalibScreen() {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 	
-	switch (steer_calib_state) {
+	switch (steeringCalibrationState) {
 		case STEER_C_OFF:
 			cmd_text(5,20,27,OPT_FLAT,"1: TURN STEERING WHEEL TO THE LEFT");
 			cmd_text(5,100,30,OPT_FLAT,"2: PUSH THE ACKNOWLEDGE");
@@ -2978,6 +3111,7 @@ static void DrawFloat(uint16_t x, uint16_t y, uint8_t font_size, float f) {
 static void DrawPresetMenu() {
 	uint8_t pos = selected - menu[selected].position; // First position in current menu
 	uint8_t end_position  = pos + menu[pos].num_menupoints - 1;  // Last position in current menu
+	uint8_t position_preset_currently_in_ecu = pos + selected_preset_file;
 	uint16_t y_position = 20;
 	uint16_t x_position = 10;
 	
@@ -2996,7 +3130,22 @@ static void DrawPresetMenu() {
 		if ( pos == selected) {
 			
 			cmd(BEGIN(RECTS));
-			cmd(COLOR_RGB(255,255,20)); // Make the main battery rectangle grey
+			cmd(COLOR_RGB(255,255,20));
+			cmd(LINE_WIDTH(16*5));
+			//cmd_fgcolor(0xffff33);
+			//cmd(COLOR_RGB(0,0,0));
+			cmd(VERTEX2F(x_position*16,y_position*16));
+			cmd(VERTEX2F((x_position+button_width)*16, (y_position+button_heigth)*16));
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+			//cmd(COLOR_RGB(255,255,255));
+			cmd(COLOR_RGB(0,0,0));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			
+			cmd_coldstart();
+		}
+		else if ( pos == position_preset_currently_in_ecu) {
+			cmd(BEGIN(RECTS));
+			cmd(COLOR_RGB(0,255,0));
 			cmd(LINE_WIDTH(16*5));
 			//cmd_fgcolor(0xffff33);
 			//cmd(COLOR_RGB(0,0,0));
@@ -3028,7 +3177,7 @@ static void DrawPresetMenu() {
 	for (pos ; pos <= end_position; pos ++) {
 		if ( pos == selected) {
 			cmd(BEGIN(RECTS));
-			cmd(COLOR_RGB(255,255,20)); // Make the main battery rectangle grey
+			cmd(COLOR_RGB(255,255,20)); 
 			cmd(LINE_WIDTH(16*5));
 			//cmd_fgcolor(0xffff33);
 			//cmd(COLOR_RGB(0,0,0));
@@ -3039,6 +3188,21 @@ static void DrawPresetMenu() {
 			cmd(COLOR_RGB(0,0,0));
 			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
 			
+			cmd_coldstart();
+		}
+		else if ( pos == position_preset_currently_in_ecu) {
+			cmd(BEGIN(RECTS));
+			cmd(COLOR_RGB(0,255,0));
+			cmd(LINE_WIDTH(16*5));
+			//cmd_fgcolor(0xffff33);
+			//cmd(COLOR_RGB(0,0,0));
+			cmd(VERTEX2F(x_position*16,y_position*16));
+			cmd(VERTEX2F((x_position+button_width)*16, (y_position+button_heigth)*16));
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+			//cmd(COLOR_RGB(255,255,255));
+			cmd(COLOR_RGB(0,0,0));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+					
 			cmd_coldstart();
 		}
 		else {
@@ -3063,13 +3227,53 @@ static void DrawPresetProcedure() {
 	
 	switch (presetProcedureState) {
 		case PRESET_PROCEDURE_FINISHED:
-			cmd_text(240,130,28,OPT_CENTER,"PRESETS SUCESSFULLY TRANSFERRED TO THE ECU");
+			cmd_text(240,130,27,OPT_CENTER,"PRESETS SUCESSFULLY TRANSFERRED TO THE ECU");
 		break;
 		case PRESET_PROCEDURE_FAILED:
 			cmd(COLOR_RGB(255,0,0));;
-			cmd_text(240,130,28,OPT_CENTER,"PRESET PROCEDURE FAILED");
+			cmd_text(240,130,27,OPT_CENTER,"PRESET PROCEDURE FAILED");
 		break;
 	}
+	
+	cmd(DISPLAY()); // display the image
+	cmd(CMD_SWAP);
+	cmd_exec();
+}
+static void DrawPresetConfirmation() {
+	uint16_t yes_x_pos = 160;
+	uint16_t bar_width = 75;
+	uint8_t yes_y_top_pos = 135;
+	uint8_t bar_heigth = 40;
+	
+	cmd(CMD_DLSTART);
+	cmd(CLEAR(1, 1, 1)); // clear screen
+	
+	// Draw two rectangles with Yes and no inside
+	// 
+	cmd(BEGIN(RECTS));
+	//cmd(LINE_WIDTH(16*5));
+	if ( menu[selected].current_setting == CONFIRM_YES) {
+		cmd(COLOR_RGB(250,250,0)); 
+		cmd(VERTEX2F(yes_x_pos*16, yes_y_top_pos*16)); // Top left coordinates
+		cmd(VERTEX2F( (yes_x_pos + bar_width)*16, (yes_y_top_pos + bar_heigth)*16 )); // Bottom rightcoordinates
+		
+		cmd(COLOR_RGB(100,100,100)); 
+		cmd(VERTEX2F(245*16,yes_y_top_pos*16)); // Top left coordinates
+		cmd(VERTEX2F( (245+bar_width)*16, (yes_y_top_pos + bar_heigth)*16)); // Bottom rightcoordinates
+	}
+	else {
+		cmd(COLOR_RGB(100,100,100)); 
+		cmd(VERTEX2F(yes_x_pos*16, yes_y_top_pos*16)); // Top left coordinates
+		cmd(VERTEX2F( (yes_x_pos + bar_width)*16, (yes_y_top_pos + bar_heigth)*16 )); // Bottom rightcoordinates
+		cmd(COLOR_RGB(250,250,0)); 
+		cmd(VERTEX2F(245*16,yes_y_top_pos*16)); // Top left coordinates
+		cmd(VERTEX2F( (245+bar_width)*16, (yes_y_top_pos + bar_heigth)*16)); // Bottom rightcoordinates
+	}
+	cmd(COLOR_RGB(255,255,255));
+	cmd_text(yes_x_pos + (bar_width/2),yes_y_top_pos + (bar_heigth/2), 28, OPT_CENTER,"YES");
+	cmd_text(245 + (bar_width/2),yes_y_top_pos + (bar_heigth/2), 28, OPT_CENTER,"NO");
+	cmd_text(240,100,28,OPT_CENTER,"SEND THIS PARAMETER FILE TO THE ECU ? ");
+	
 	
 	cmd(DISPLAY()); // display the image
 	cmd(CMD_SWAP);
@@ -3091,7 +3295,7 @@ static void adjustParameters(ERotary_direction dir, ParameterValue *parameter) {
 			}
 		break;
 		case KERS_SETTING:
-			if ( (dir == CW) && ( (parameter->kers_value + StepSizeVar.kers) <= parameter->kers_value )  ) {
+			if ( (dir == CW) && ( (parameter->kers_value + StepSizeVar.kers) <= parameter->max_kers_value )  ) {
 				parameter->kers_value += StepSizeVar.kers;
 			}
 			else if ( (dir == CCW) && ( parameter->kers_value   >= (parameter->min_kers_value + StepSizeVar.kers) ) ) {

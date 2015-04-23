@@ -40,7 +40,7 @@ void init_CanHandling() {
 	// Queue Inits
 	// xDataLoggerQueue needs the whole can message
 	xDataLoggerQueue	= xQueueCreate(DATALOGGER_QUEUE_SIZE,sizeof(SensorPacket));
-	xDashQueue			= xQueueCreate(20,sizeof(SensorPacket));
+	xDashQueue			= xQueueCreate(20,sizeof(struct CanMessage));
 	// Only needs one byte to identify the different buttons
 	xRemoteControlQueue = xQueueCreate(20,sizeof(uint8_t));
 	xDeviceStatusQueue	= xQueueCreate(20,sizeof(uint8_t));
@@ -77,12 +77,12 @@ void CAN0_Handler() {
 		// Convert can message to json format 
 		long lHigherPriorityTaskWoken = pdFALSE;
 		if (xQueueSendToBackFromISR(xDataLoggerQueue,&SensorPacket,&lHigherPriorityTaskWoken) != pdTRUE) {
-			dataloggerFailCounter += 1;
-			dataloggerFail.data.u32[0] = dataloggerFailCounter;
+			//dataloggerFailCounter += 1;
+			//dataloggerFail.data.u32[0] = dataloggerFailCounter;
 			// Send a can message to inform that datalogger has fallen behind
 			// Thread safety on can ?
 			// Remember to turn of all other can sendmessages when testing this !!!!
-			can_sendMessage(CAN0,dataloggerFail);
+			//can_sendMessage(CAN0,dataloggerFail);
 			//Queue is full. What to do ?
 		}
 		
@@ -110,6 +110,8 @@ void CAN0_Handler() {
 			//***************************************//
 			//--------------DASH TASK----------------//
 			//***************************************//
+			case ID_IN_ECU_TRACTION_CONTROL:
+			case ID_ECU_PARAMETER_CONFIRMED:
 			case ID_BMS_MAX_MIN_VALUES:
 			case ID_TRQ_CONF_CH0:
 			case ID_TRQ_CONF_CH1:
@@ -129,7 +131,6 @@ void CAN0_Handler() {
 			case ID_DAMPER_FR:
 			case ID_DAMPER_RL:
 			case ID_DAMPER_RR:
-			case 11:
 				xQueueSendToBackFromISR(xDashQueue,&message,NULL);
 			break;
 		break;	
@@ -180,11 +181,21 @@ void CAN1_Handler() {
 				//***************************************//
 				//--------------DASH TASK----------------//
 				//***************************************//
-				case ID_TRQ_CONF_CH0:
-				case ID_TRQ_CONF_CH1:
-				case ID_TORQUE_ENCODER_0_DATA:
-				case ID_TORQUE_ENCODER_1_DATA:
+				
+				
+				//*********ECU RELATED***********//
 				case ID_ECU_CAR_STATES:
+				case ID_IN_ECU_LC:
+				case ID_IN_ECU_TRACTION_CONTROL:
+				case ID_ECU_PARAMETER_CONFIRMED:
+				//*******************************//
+				
+				//*******TORQUE AND STEERING*****//
+				case ID_TRQ_CONF_CH1:
+				case ID_TORQUE_ENCODER_1_DATA:
+				//*******************************//
+				
+				//*************ADC***************//
 				case ID_SPEED_FL:
 				case ID_SPEED_FR:
 				case ID_SPEED_RR:
@@ -197,8 +208,8 @@ void CAN1_Handler() {
 				case ID_DAMPER_FR:
 				case ID_DAMPER_RL:
 				case ID_DAMPER_RR:
+				//*******************************//
 				case ID_IMD_SHUTDOWN:
-				case 11:
 				xQueueSendToBackFromISR(xDashQueue,&message,NULL);
 				break;
 			break;

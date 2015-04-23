@@ -188,8 +188,8 @@ static void logDataToCurrentFile() {
 		if (offset == BUFFER_ADJUST) {
 			offset = 0;			
 			
-			file_size_byte_counter += 1;
-			preallocation_counter += 1;
+			file_size_byte_counter	+= 1;
+			preallocation_counter	+= 1;
 			taskENTER_CRITICAL();
 			start_time = RTT->RTT_VR;				
 			f_write(&file_object,dataLogger_buffer, BUFFER_LENGTH, &byte_written);
@@ -307,7 +307,7 @@ static void getPresetParametersFromFile(char file_name[]) {
 					presetParametersToMenuTask.desired_slip_term = f;
 				break;
 				case '7':
-					presetParametersToMenuTask.max_integral_term = integer_part;
+					presetParametersToMenuTask.max_integral_term = f;
 				break;	
 			}
 		}	

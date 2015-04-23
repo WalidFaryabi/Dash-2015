@@ -11,6 +11,7 @@
 //***********OUT GOING*******************//
 //***************************************//
 #define ID_ECU_DRIVE				0x260
+#define ID_ECU_TRACTION_CONTROL		0x261
 #define ID_ECU_LC					0x262
 #define ID_FINISHED_RTDS			0x263
 #define ID_ECU_PARAMETERS			0x264
@@ -30,6 +31,8 @@
 #define	ID_ECU_CAR_STATES			0x230
 #define ID_ECU_PARAMETER_CONFIRMED	0x231
 #define ID_IN_ECU_LC				0x232
+#define ID_IN_ECU_TRACTION_CONTROL	0x234
+#define ID_IN_ECU_SELECTED_PRESET	0x235
 
 
 

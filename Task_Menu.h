@@ -12,10 +12,10 @@
 
 typedef enum {MAIN_SCREEN,SYSTEM_MONITOR,TEMP_VOLT,MAIN_MENU,KERS_OPTION,DEVICE_STATUS,
 			  SPEED,TRQ_CALIB,PERSISTENT_MSG,ECU_OPTIONS,LC_HANDLER,ERROR_HANDLER,SNAKE_GAME,
-			  STEER_CALIB,DL_OPTIONS,LOCKED_SEL,PRESET_SEL,PRESET_PROCEDURE} EMenuName;
+			  STEER_CALIB,DL_OPTIONS,LOCKED_SEL,PRESET_SEL,PRESET_PROCEDURE,PRESET_CONFIRM} EMenuName;
 			  
 typedef enum {NO_SETTING,TORQUE_SETTING,KERS_SETTING, TRACTION_CONTROL_SETTING, DL_PREALLOCATE,PRESET_1_SETTING,PRESET_2_SETTING,
-			  PRESET_3_SETTING,PRESET_4_SETTING,PRESET_5_SETTING,PRESET_6_SETTING,PRESET_7_SETTING,PRESET_8_SETTING} EAdjustmentParameter;
+			  PRESET_3_SETTING,PRESET_4_SETTING,PRESET_5_SETTING,PRESET_6_SETTING,PRESET_7_SETTING,PRESET_8_SETTING, CONFIRM_YES, CONFIRM_NO} EAdjustmentParameter;
 			  
 typedef enum {NAVIGATION,PUSH_ACK,ROTARY,ROT_ACK,START,LAUNCH_CONTROL,NONE_BTN} EButtonType;
 typedef enum {UP,DOWN,LEFT,RIGHT,NAV_DEFAULT} ENavigationDirection;
@@ -40,8 +40,8 @@ typedef enum {PRESET_PROCEDURE_OFF,PRESET_PROCEDURE_INIT, PRESET_PROCEDURE_WAITI
 			  PRESET_PROCEDURE_SEND_P_TERM, WAIT_P_TERM, PRESET_PROCEDURE_SEND_I_TERM, WAIT_I_TERM,
 			  PRESET_PROCEDURE_SEND_D_TERM, WAIT_D_TERM, PRESET_PROCEDURE_SEND_MAX_MIN_TERM, WAIT_MAX_MIN_TERM,
 			  PRESET_PROCEDURE_SEND_MAX_DECREASE_TERM, WAIT_MAX_DECREASE_TERM,PRESET_PROCEDURE_SEND_DESIRED_SLIP_TERM, 
-			  WAIT_DESIRED_SLIP_TERM, PRESET_PROCEDURE_SEND_MAX_INTEGRAL_TERM, WAIT_MAX_INTEGRAL_TERM,
-			  PRESET_PROCEDURE_FINISHED,PRESET_PROCEDURE_FAILED} EPresetStates;
+			  WAIT_DESIRED_SLIP_TERM, PRESET_PROCEDURE_SEND_MAX_INTEGRAL_TERM, WAIT_MAX_INTEGRAL_TERM, PRESET_PROCEDURE_SEND_SELECTED_PRESET,
+			  WAIT_SELECTED_PRESET, PRESET_PROCEDURE_FINISHED,PRESET_PROCEDURE_FAILED} EPresetStates;
 	
 typedef struct ButtonsOnDashboard {
 	bool unhandledButtonAction;
@@ -56,6 +56,7 @@ typedef struct ConfirmationMessagesReceivedOverCan {
 	bool drive_enabled_confirmed;
 	bool lc_request_confirmed;
 	bool lc_ready;
+	bool lc_off;
 	ESteerConfStates conf_steer;
 	ETrqConfStates conf_trq_ch0;
 	ETrqConfStates conf_trq_ch1;
@@ -109,10 +110,9 @@ typedef struct ParameterValues { // Values of adjustable variables
 	uint16_t confirmed_kers_value;
 	uint16_t max_kers_value;
 	
-	uint8_t min_traction_control_value;
 	uint8_t traction_control_value;
 	uint8_t confirmed_traction_control_value;
-	uint8_t max_traction_control_value;
+
 	
 	
 	
@@ -131,7 +131,7 @@ typedef struct SensorValuesReceivedOverCan {
 	uint32_t bms_discharge_limit;
 } SensorValues;
 
-typedef struct SensorRealValues {
+typedef struct SensorValuesConvertedToPhysicalValues {
 	uint8_t torque_encoder_ch0;
 	uint8_t torque_encoder_ch1;
 	uint8_t brake_pressure_rear;
@@ -167,7 +167,7 @@ typedef struct SensorRealValues {
 	uint8_t car_speed;
 	uint8_t bms_discharge_limit;
 	uint8_t brake_pedal_actuation;
-	} SensorRealValue;
+	} SensorPhysicalValues;
 
 
 typedef struct MenuStructure {
@@ -193,7 +193,7 @@ extern SemaphoreHandle_t xButtonStruct;
 extern SemaphoreHandle_t can_mutex_0;
 extern SemaphoreHandle_t can_mutex_1;
 Buttons btn;
-DeviceState device_state;
+DeviceState deviceState;
 
 extern uint8_t selected;
 

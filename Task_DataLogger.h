@@ -28,7 +28,8 @@ struct presetParameterStruct {
 	float max_min_term;
 	float max_decrease_term;
 	float desired_slip_term;
-	uint32_t max_integral_term;
+	float max_integral_term;
+	uint8_t selected_preset;
 };
 
 
