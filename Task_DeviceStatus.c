@@ -102,9 +102,9 @@ void deviceStatusTask() {
 		}
 	}
 	while(1) {
-		xStatus = xQueueReceive( xDeviceStatusQueue, &device_id, xTicksToWait);
-		if ( xStatus == pdPASS) {
-			//do something with data in lreceivedvalue
+		while (xQueueReceive( xDeviceStatusQueue, &device_id, xTicksToWait) == pdPASS ) {
+		//xStatus = xQueueReceive( xDeviceStatusQueue, &device_id, xTicksToWait);
+		//if ( xStatus == pdPASS) {
 			switch (device_id) {
 				case ALIVE_ECU:
 					xTimerReset(deviceTimer[0],1/portTICK_RATE_MS);
@@ -183,6 +183,5 @@ void deviceStatusTask() {
 			}
 		}
 		vTaskDelay(100/portTICK_RATE_MS);
-		//vTaskDelayUntil(&xLastWakeTime,50/portTICK_RATE_MS);
 	}
 }

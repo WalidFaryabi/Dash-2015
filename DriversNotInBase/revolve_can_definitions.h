@@ -1,4 +1,4 @@
-	/*
+/*
  * revolve_can_definitions.h
  *
  * Created: 20.01.2013 18:47:51
@@ -122,7 +122,33 @@
 /*   If you want to make your own macro to replace module_id_x, make it here   */
 //-------------------------------------------------------------------------------
 
+/* BMS ID OVERRIDES */
+#define BMS_I_AM_ALIVE_ID		(CANR_FCN_DATA_ID	|CANR_GRP_DASH_ID|CANR_MODULE_ID7_ID)
+#define BMS_ANALYZE_CMD_ID		(CANR_FCN_CMD_ID	|CANR_GRP_BMS_ID|CANR_MODULE_ID0_ID)
+#define BMS_STATE_MSG_ID		(CANR_FCN_CMD_ID	|CANR_GRP_BMS_ID|CANR_MODULE_ID2_ID )
 
+/* GLVBMS ID OVERRIDES */
+
+#define GLVBMS_VTG_ID			(CANR_FCN_DATA_ID | CANR_GRP_SENS_GLVBMS_ID | CANR_MODULE_ID0_ID )
+#define GLVBMS_TEMP_ID			(CANR_FCN_DATA_ID | CANR_GRP_SENS_GLVBMS_ID | CANR_MODULE_ID1_ID )
+#define GLVBMS_CURRENT_ID 		(CANR_FCN_DATA_ID | CANR_GRP_SENS_GLVBMS_ID | CANR_MODULE_ID2_ID )
+#define GLVBMS_TOTVTG_ID		(CANR_FCN_DATA_ID | CANR_GRP_SENS_GLVBMS_ID | CANR_MODULE_ID3_ID )
+#define GLVBMS_MAXMIN_VAL_ID	(CANR_FCN_DATA_ID | CANR_GRP_SENS_GLVBMS_ID | CANR_MODULE_ID4_ID )
+/* Inverter ID OVERRIDES */
+
+#define INVERTER_RESERVED0			(CANR_FCN_DATA_ID 	|CANR_GRP_INVERTER_ID | CANR_MODULE_ID7_ID)
+#define INTERTER_RESERVED1			(CANR_FCN_DATA_ID 	|CANR_GRP_INVERTER_ID | CANR_MODULE_ID6_ID)
+#define INVERTER_RESERVED2			(CANR_FCN_DATA_ID 	|CANR_GRP_INVERTER_ID | CANR_MODULE_ID5_ID)
+#define INTERTER_RESERVED3			(CANR_FCN_DATA_ID 	|CANR_GRP_INVERTER_ID | CANR_MODULE_ID4_ID)
+#define INVERTER_DATA_ENCODER_POS	(CANR_FCN_DATA_ID 	|CANR_GRP_INVERTER_ID | CANR_MODULE_ID3_ID)
+#define INVERTER_DATA_RPM_ID		(CANR_FCN_DATA_ID 	|CANR_GRP_INVERTER_ID | CANR_MODULE_ID2_ID)
+#define INVERTER_DATA_CURRENT_ID	(CANR_FCN_DATA_ID 	|CANR_GRP_INVERTER_ID | CANR_MODULE_ID1_ID)
+#define INVERTER_DATA_VOLTAGE_ID	(CANR_FCN_DATA_ID 	|CANR_GRP_INVERTER_ID | CANR_MODULE_ID0_ID)
+
+
+/* Telemetry ID OVERRIDES */
+
+#define TELEMETRY_TO_INVERTER_DATA_ID (CANR_FCN_CMD_ID | CANR_GRP_TELEMETRY_ID | CANR_MODULE_ID3_ID)
 
 
 //-------------------------------------------------------------------------------
@@ -130,7 +156,12 @@
 /* If you want to describe the mapping of your can bus data, make macros here  */
 //-------------------------------------------------------------------------------
 
-
+/* Inverter data, sent from telemetry (analyze) */
+#define STATUS_BIT_FLIP_REQUEST 0x01
+#define CONTROLLER_PARAMETER_P_SET_REQUEST 0x11
+#define CONTROLLER_PARAMETER_I_SET_REQUEST 0x12
+#define CONTROLLER_PARAMETER_D_SET_REQUEST 0x13
+#define TORQUE_REQUEST 0x41
 
 //-------------------------------------------------------------------------------------
 

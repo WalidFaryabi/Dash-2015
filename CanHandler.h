@@ -19,6 +19,8 @@ extern QueueHandle_t xRemoteControlQueue;
 extern QueueHandle_t xDataLoggerQueue;
 extern QueueHandle_t xDashQueue;
 
+extern uint32_t can_send_to_datalogger_queue_failed;
+
 void init_CanHandling();
 
 

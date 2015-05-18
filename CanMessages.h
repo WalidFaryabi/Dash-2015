@@ -6,6 +6,10 @@
 #include "DriversNotInBase/revolve_can_definitions.h"
 #include "canID_definitions.h"
 
+struct CanMessage IAmAlive = {
+	.dataLength = 0,
+	.messageID = ID_I_AM_ALIVE
+};
 
 struct CanMessage TorquePedalCalibrationMax = {
 	.data.u8[0] = 0xF0,

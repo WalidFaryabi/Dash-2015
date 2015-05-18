@@ -73,6 +73,7 @@ static void vVarConfTimerCallback(TimerHandle_t xTimer);
 static void vMenuUpdateCallback(TimerHandle_t pxTimer);
 static void createAndStartMenuUpdateTimers();
 static void vTSLedTimerCallback(TimerHandle_t pxtimer);
+static void iAmAliveTimerCallback(TimerHandle_t pxTimer);
 
 //***********************************************************************************
 //------------------------------------CALCULATION FUNCTIONS-------------------------//
@@ -235,7 +236,7 @@ const MenuEntry menu[] = {
 #define PRESET_PROCEDURE_POS		37
 
 #define NUM_MENUS_UPDATE 2 // Number of menus to specifiy a certain update frequency for
-#define RTDS_DURATION_MS 1500
+#define RTDS_DURATION_MS 1500/portTICK_RATE_MS
 #define WATCHDOG_RESET_COMMAND  ( (0xA5 << 24) | (1<<0)) // Command to write to WDT CR register to reset the counter
 
 // Identifiers for parameters sent to ECU
@@ -262,6 +263,7 @@ static TimerHandle_t	LcTimer;
 static TimerHandle_t	calibrationTimer;
 static TimerHandle_t	parameterConfTimer;
 static TimerHandle_t	timerMenuUpdate[NUM_MENUS_UPDATE];
+static TimerHandle_t	iAmAliveTimer;
 static bool				trq_calib_timed_out				= false;
 static bool				steer_calib_timed_out			= false;
 static bool				parameter_confirmation_timed_out = false;
@@ -269,7 +271,7 @@ static uint8_t			lc_timer_count					= 0; // Countdown timer for launch control
 //***********************************************************************************
 //---------------------------FILE GLOBAL STATE VARIABLES------------------------------//
 //***********************************************************************************
-static ECarState					carState					= TRACTIVE_SYSTEM_OFF;
+static ECarState					carState					= TRACTIVE_SYSTEM_ON;
 static ESteerCalibState				steeringCalibrationState	= STEER_C_OFF;
 static ETorquePedalCalibrationState torquePedalCalibrationState	= TRQ_CALIBRATION_OFF;
 static EPresetStates				presetProcedureState		= PRESET_PROCEDURE_OFF;
@@ -339,19 +341,19 @@ EAdjustmentParameter presetSetting;
 static uint8_t selected_preset_file = 100;
 static bool RTDS_finished_playing = false;
 static uint8_t prev_selected = 0;
+static bool send_alive = false;
 //***********************************************************************************
 //------------------------------------THE MAIN DASH FUNCTIONS-----------------------//
 //***********************************************************************************
 void dashTask() {
 	TickType_t xLastWakeTime;
-	RTDSTimer				= xTimerCreate("RTDSTimer",RTDS_DURATION_MS/portTICK_RATE_MS,pdFALSE,0,vRTDSCallback);
-	LcTimer					= xTimerCreate("lcTimer",1000/portTICK_RATE_MS,pdTRUE,(void *) 1,vLcTimerCallback);
-	calibrationTimer		= xTimerCreate("CalibTimer",3000/portTICK_RATE_MS,pdFALSE,(void *) 1,vCalibrationTimerCallback);
-	parameterConfTimer		= xTimerCreate("parTimer",1000/portTICK_RATE_MS,pdFALSE,0,vVarConfTimerCallback);
-	TSLedTimer				= xTimerCreate("TSLed", 300/portTICK_RATE_MS,pdTRUE,0,vTSLedTimerCallback);
+	RTDSTimer				= xTimerCreate("RTDSTimer",	RTDS_DURATION_MS,		pdFALSE,	0,			vRTDSCallback);
+	LcTimer					= xTimerCreate("lcTimer",	1000/portTICK_RATE_MS,	pdTRUE,		(void *) 1,	vLcTimerCallback);
+	calibrationTimer		= xTimerCreate("CalibTimer",3000/portTICK_RATE_MS,	pdFALSE,	(void *) 1,	vCalibrationTimerCallback);
+	parameterConfTimer		= xTimerCreate("parTimer",	1000/portTICK_RATE_MS,	pdFALSE,	0,			vVarConfTimerCallback);
+	TSLedTimer				= xTimerCreate("TSLed",		300/portTICK_RATE_MS,	pdTRUE,		0,			vTSLedTimerCallback);	
+	iAmAliveTimer			= xTimerCreate("iAmAlive",	1000/portTICK_RATE_MS,	pdTRUE,		0,			iAmAliveTimerCallback);
 	createAndStartMenuUpdateTimers();
-	
-	
 	
 	//Init states
 	SensorValues			sensorValue;
@@ -392,6 +394,11 @@ void dashTask() {
 	}
 	
 	while(1) {
+		if (send_alive) {
+			can_freeRTOSSendMessage(CAN0,IAmAlive);
+			can_freeRTOSSendMessage(CAN1,IAmAlive);
+			send_alive = false;
+		}
 		// The delay for this task is given by the wait time specified in the queuereceive function
 		// in the getdashmessages function. This is done to ensure that as long as there are 
 		// messages in the queue the menu task will service them. The update frequency of the visuals 
@@ -551,7 +558,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *confMsg) 
 		case PRESET_PROCEDURE_SEND_P_TERM:
 			EcuParametersFromFile.data.u8[0] = P_TERM;
 			EcuParametersFromFile.data.f[1] = presetParameters.p_term;
-			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			can_freeRTOSSendMessage(CAN1, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			confMsg->ECU_parameter_confirmed = false;
 			parameter_confirmation_timed_out = false;
@@ -571,7 +578,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *confMsg) 
 		case PRESET_PROCEDURE_SEND_I_TERM:
 			EcuParametersFromFile.data.u8[0] = I_TERM;
 			EcuParametersFromFile.data.f[1] = presetParameters.i_term;
-			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			can_freeRTOSSendMessage(CAN1, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
 			presetProcedureState = WAIT_I_TERM;
@@ -590,7 +597,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *confMsg) 
 		case PRESET_PROCEDURE_SEND_D_TERM:
 			EcuParametersFromFile.data.u8[0] = D_TERM;
 			EcuParametersFromFile.data.f[1] = presetParameters.d_term;
-			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			can_freeRTOSSendMessage(CAN1, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
 			presetProcedureState = WAIT_I_TERM;
@@ -609,7 +616,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *confMsg) 
 		case PRESET_PROCEDURE_SEND_MAX_MIN_TERM:
 			EcuParametersFromFile.data.u8[0] = MAX_MIN_VALUE;
 			EcuParametersFromFile.data.f[1] = presetParameters.max_min_term;
-			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			can_freeRTOSSendMessage(CAN1, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
 			presetProcedureState = WAIT_I_TERM;
@@ -628,7 +635,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *confMsg) 
 		case PRESET_PROCEDURE_SEND_MAX_DECREASE_TERM:
 			EcuParametersFromFile.data.u8[0] = MAX_DECREASE;
 			EcuParametersFromFile.data.f[1] = presetParameters.max_decrease_term;
-			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			can_freeRTOSSendMessage(CAN1, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
 			presetProcedureState = WAIT_I_TERM;
@@ -645,7 +652,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *confMsg) 
 		case PRESET_PROCEDURE_SEND_DESIRED_SLIP_TERM:
 			EcuParametersFromFile.data.u8[0] = DESIRED_SLIP;
 			EcuParametersFromFile.data.f[1] = presetParameters.desired_slip_term;
-			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			can_freeRTOSSendMessage(CAN1, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
 			presetProcedureState = WAIT_I_TERM;
@@ -663,7 +670,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *confMsg) 
 		case PRESET_PROCEDURE_SEND_MAX_INTEGRAL_TERM:
 			EcuParametersFromFile.data.u8[0] = MAX_INTEGRAL;
 			EcuParametersFromFile.data.f[1] = presetParameters.max_integral_term;
-			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			can_freeRTOSSendMessage(CAN1, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
 			presetProcedureState = WAIT_I_TERM;
@@ -681,7 +688,7 @@ static void presetProcedureHandling(bool ackPressed, ConfirmationMsgs *confMsg) 
 		case PRESET_PROCEDURE_SEND_SELECTED_PRESET:
 			EcuParametersFromFile.data.u8[0] = SELECTED_PRESET;
 			EcuParametersFromFile.data.u8[1] = presetParameters.selected_preset;
-			can_freeRTOSSendMessage(CAN0, EcuParametersFromFile);
+			can_freeRTOSSendMessage(CAN1, EcuParametersFromFile);
 			xTimerReset(parameterConfTimer,0);
 			parameter_confirmation_timed_out = false;
 			presetProcedureState = WAIT_SELECTED_PRESET;
@@ -744,7 +751,7 @@ static void changeCarState(ConfirmationMsgs *confMsg, StatusMsg *status, SensorP
 			}
 			else if (confMsg->drive_disabled_confirmed == true) {
 				carState = TRACTIVE_SYSTEM_ON;
-				can_sendMessage(CAN0,FinishedRTDS);
+				can_sendMessage(CAN1,FinishedRTDS);
 				confMsg->drive_disabled_confirmed = false;
 			}
 			else if (confMsg->lc_request_confirmed == true) {
@@ -807,7 +814,7 @@ static void changeCarState(ConfirmationMsgs *confMsg, StatusMsg *status, SensorP
 					xTimerReset(LcTimer,5/portTICK_RATE_MS);
 					lc_timer_count = 0;
 					//Send can message that countdown is finished
-					can_freeRTOSSendMessage(CAN0,RequestLCArmed);
+					can_freeRTOSSendMessage(CAN1,RequestLCArmed);
 				}
 			//}
 			/*else {
@@ -944,7 +951,7 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 						EcuParametersFromFile.dataLength = 2;
 						if ( (parameter->torque <= 100) && (parameter->torque >= 0) ) {
 							EcuParametersFromFile.data.u8[1] = parameter->torque;
-							can_freeRTOSSendMessage(CAN0,EcuParametersFromFile);
+							can_freeRTOSSendMessage(CAN1,EcuParametersFromFile);
 						}
 					break;
 					case KERS_SETTING:
@@ -952,7 +959,7 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 						EcuParametersFromFile.dataLength = 2;
 						if ( (parameter->kers_value <= parameter->max_kers_value) && (parameter->kers_value >= 0) ) {
 							EcuParametersFromFile.data.u8[1] = parameter->kers_value;
-							can_freeRTOSSendMessage(CAN0,EcuParametersFromFile);
+							can_freeRTOSSendMessage(CAN1,EcuParametersFromFile);
 						}
 						break;
 					case TRACTION_CONTROL_SETTING:
@@ -962,7 +969,7 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 						else if (parameter->traction_control_value == 1) {
 							EcuTractionControl.data.u8[0] = 0x0F;
 						}
-						can_freeRTOSSendMessage(CAN0,EcuTractionControl);
+						can_freeRTOSSendMessage(CAN1,EcuTractionControl);
 						
 					break;
 					
@@ -1026,7 +1033,7 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 		if (carState == DRIVE_ENABLED) {
 			//Request Launch control from ECU
 			//Send CAN message
-			can_freeRTOSSendMessage(CAN0,RequestLCInit);
+			can_freeRTOSSendMessage(CAN1,RequestLCInit);
 
 		}
 	}
@@ -1044,17 +1051,15 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 		}
 		
 	}
-	
-	
 	else if (btn->btn_type == START) {
-		if ( (carState != TRACTIVE_SYSTEM_OFF) || (carState != TRACTIVE_SYSTEM_ON) )  {
+		if ( (carState != TRACTIVE_SYSTEM_OFF) && (carState != TRACTIVE_SYSTEM_ON) )  {
 			// Request shut down
-			can_freeRTOSSendMessage(CAN0, RequestDriveDisable);
+			can_freeRTOSSendMessage(CAN1, RequestDriveDisable);
 		}
 		else if (carState == TRACTIVE_SYSTEM_ON) {
 			//Request car start
 			// If criterias satisfied
-			can_freeRTOSSendMessage(CAN0, RequestDriveEnable);
+			can_freeRTOSSendMessage(CAN1, RequestDriveEnable);
 		}
 		
 		/*if (btn->drive_switch_disable == true) {
@@ -1310,12 +1315,19 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 					break;
 				}
 			break;
+			
+			case ID_BMS_TRACTIVE_SYSTEM_ACTIVE:
+				if (ReceiveMsg.data.u8[0] == 0xA5){
+					status->shut_down_circuit_closed = true;
+				}
+				else if (ReceiveMsg.data.u8[0] == 0x01) {
+					status->shut_down_circuit_closed = false;
+				}
+			break;
+			
+			
 			case ID_ECU_CAR_STATES:
 				switch (ReceiveMsg.data.u8[0]) {
-					case 0x0F:
-					//TS active
-					status->shut_down_circuit_closed = true;
-					break;
 					case 0x01:
 					//Play RTDS. The timer callback will turn it off after RTDS_DURATION_MS has passed.
 					// It will also send a can message telling the ECU the dash is done with RTDS.
@@ -1809,6 +1821,9 @@ static void vTSLedTimerCallback(TimerHandle_t pxtimer){
 		pio_setOutput(TS_LED_PIO,TS_LED_PIN, PIN_HIGH);
 	}
 }
+static void iAmAliveTimerCallback(TimerHandle_t pxTimer) {
+	send_alive = true;
+}
 
 static void initSensorRealValueStruct(SensorPhysicalValues *sensorReal) {
 	sensorReal->torque_encoder_ch0 = 0;
@@ -1847,7 +1862,7 @@ static void initSensorValueStruct(SensorValues *sensorValue) {
 
 }
 static void initStatusStruct(StatusMsg *status) {
-	status->shut_down_circuit_closed = false;
+	status->shut_down_circuit_closed = true;
 }
 static void initConfirmationMessagesStruct(ConfirmationMsgs *confMsg) {
 	confMsg->drive_disabled_confirmed	= false;
@@ -1927,6 +1942,12 @@ static void setParameterBasedOnConfirmation(ParameterValue *parameter) {
 			}
 			else {
 				parameter->confirmed_traction_control_value = parameter->traction_control_value;
+				if (parameter->confirmed_traction_control_value == 1) {
+					tractionControlState = TRACTION_CONTROL_ON;
+				}
+				else {
+					tractionControlState = TRACTION_CONTROL_OFF;
+				}
 			}
 		break;
 	}
@@ -2338,7 +2359,6 @@ static void DrawTempAndVoltScreen(SensorPhysicalValues *tempvolt) {
 		cmd_number(435, 230, 31, OPT_CENTER, tempvolt->GLV_voltage_lsb);
 		cmd_text(455, 235, 22, OPT_CENTER, "V");
 	}
-	
 	cmd(DISPLAY()); // display the image
 	cmd(CMD_SWAP);
 	cmd_exec();
@@ -3057,6 +3077,9 @@ static void DrawDataloggerInterface() {
 	cmd(COLOR_RGB(255,255,255));
 	switch (dataloggerState) {
 		case DATALOGGER_IDLE:
+			// Reset fail counter
+			can_send_to_datalogger_queue_failed = 0;
+			
 			cmd(COLOR_RGB(255,0,0));
 			cmd_text(x_position_status_text,20,font_size,OPT_FLAT,"NOT LOGGING");
 			cmd(COLOR_RGB(255,255,255));
@@ -3079,11 +3102,17 @@ static void DrawDataloggerInterface() {
 			datalogger_write_speed = BUFFER_LENGTH/(stop_time-start_time);
 			cmd_text(x_position_status_text,110,font_size,OPT_FLAT,"W [KB/s]:");
 			cmd_number(400,110,font_size,OPT_FLAT,datalogger_write_speed);
-				
+			
+			cmd_text(x_position_status_text,140,font_size,OPT_FLAT,"FAIL COUNTER:");
+			cmd_number(420,140,font_size,OPT_CENTER,can_send_to_datalogger_queue_failed);
+			
 			cmd_text(x_position_status_text,200,font_size,OPT_FLAT,"USB NOT CONNECTED");
 		break;
 		
 		case DATALOGGER_USB_CONNECTED:
+			// Reset fail counter
+			can_send_to_datalogger_queue_failed = 0;
+			
 			cmd(COLOR_RGB(255,0,0));
 			cmd_text(x_position_status_text,20,font_size,OPT_FLAT,"NOT LOGGING");
 			cmd(COLOR_RGB(255,255,255));

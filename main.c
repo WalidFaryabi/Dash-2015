@@ -40,7 +40,11 @@ Changed:
 PMC and Pio modified
 Feertosconfig. Changed max timer queue
 INCLUDE_xSemaphoreGetMutexHolder 1 This is not default in freertos config h
-Added float to can union
+
+*Shut_down_circuit_closed is initialized to true
+carState is set to tractive system on when start
+
+
 */
 
 #define WATCHDOG_DOWN_COUNTER 769 // 3 seconds
@@ -51,15 +55,15 @@ int main(void) {
 	
 	hardwareInit();
 	
-	file_access_mutex = xSemaphoreCreateMutex();
-	xButtonStruct = xSemaphoreCreateMutex();
-	spi_handlerIsDoneSempahore = xSemaphoreCreateBinary();
-	spi_mutex = xSemaphoreCreateMutex();
-	can_mutex_0 = xSemaphoreCreateMutex();
-	can_mutex_1 = xSemaphoreCreateMutex();
+	file_access_mutex			= xSemaphoreCreateMutex();
+	xButtonStruct				= xSemaphoreCreateMutex();
+	spi_handlerIsDoneSempahore	= xSemaphoreCreateBinary();
+	spi_mutex					= xSemaphoreCreateMutex();
+	can_mutex_0					= xSemaphoreCreateMutex();
+	can_mutex_1					= xSemaphoreCreateMutex();
 	
-	xDataloggerCommandQueue = xQueueCreate(5,sizeof(uint8_t));
-	xPresetQueue			= xQueueCreate(2,sizeof(struct presetParameterStruct));
+	xDataloggerCommandQueue		= xQueueCreate(5,sizeof(uint8_t));
+	xPresetQueue				= xQueueCreate(2,sizeof(struct presetParameterStruct));
 	
 	BaseType_t status;
 	uint32_t bytesremaining;

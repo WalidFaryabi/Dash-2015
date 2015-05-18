@@ -23,6 +23,7 @@
 #define ID_STEERING_CALIBRATION		0x461
 
 #define ID_DASH_ACKNOWLEDGE			0x660
+#define ID_I_AM_ALIVE				0x661
 
 //***************************************//
 //************INCOMING*******************//
@@ -36,7 +37,7 @@
 
 
 
-
+#define ID_BMS_TRACTIVE_SYSTEM_ACTIVE 0x62B
 #define ID_BMS_MAX_MIN_VALUES		0x62D
 
 #define ID_TRQ_CONF_CH0				0x210				//(CANR_FCN_BOOT_ID | CANR_GRP_SENS_ROTARY_ID | CANR_MODULE_ID0_ID)
@@ -48,7 +49,6 @@
 #define ID_STEERING_ENCODER_DATA	0x614
 
 #define ID_IMD_SHUTDOWN				0x671
-
 
 #define ID_BRAKE_PRESSURE_FR		0x618
 #define ID_BRAKE_PRESSURE_FL		0x619
