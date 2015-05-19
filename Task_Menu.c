@@ -353,6 +353,7 @@ void dashTask() {
 	parameterConfTimer		= xTimerCreate("parTimer",	1000/portTICK_RATE_MS,	pdFALSE,	0,			vVarConfTimerCallback);
 	TSLedTimer				= xTimerCreate("TSLed",		300/portTICK_RATE_MS,	pdTRUE,		0,			vTSLedTimerCallback);	
 	iAmAliveTimer			= xTimerCreate("iAmAlive",	1000/portTICK_RATE_MS,	pdTRUE,		0,			iAmAliveTimerCallback);
+	xTimerReset(iAmAliveTimer,0);
 	createAndStartMenuUpdateTimers();
 	
 	//Init states
@@ -395,6 +396,7 @@ void dashTask() {
 	
 	while(1) {
 		if (send_alive) {
+			//can_sendMessage(CAN0,IAmAlive);
 			can_freeRTOSSendMessage(CAN0,IAmAlive);
 			can_freeRTOSSendMessage(CAN1,IAmAlive);
 			send_alive = false;

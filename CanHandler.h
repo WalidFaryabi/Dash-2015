@@ -23,6 +23,8 @@ extern uint32_t can_send_to_datalogger_queue_failed;
 
 void init_CanHandling();
 
+void can0_Handler();
+void can1_Handler();
 
 
 

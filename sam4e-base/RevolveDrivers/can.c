@@ -74,6 +74,8 @@ const can_bit_timing_t can_bit_time[] = {
 	{25, (7 + 1), (7 + 1), (7 + 1), (3 + 1), 68}
 };
 
+void can_enableRXInterrupt(Can *can);
+
 void can_writeProtectionEnable(Can *can){
 	can->CAN_WPMR = CAN_WPMR_WPKEY_PASSWD | CAN_WPMR_WPEN;
 }
@@ -206,9 +208,9 @@ void can_setupTXMailbox(Can *can, uint8_t mailbox_id, uint8_t priority){
 void can_setupRXMailbox(Can *can, uint8_t mailbox_id, uint32_t acceptence_mask, uint32_t id_mask){
 	can_writeProtectionDisable(can);
 	/* Set acceptance mask  */
-	can->CAN_MB[mailbox_id].CAN_MAM = acceptence_mask | CAN_MAM_MIDE;
+	can->CAN_MB[mailbox_id].CAN_MAM = CAN_MAM_MIDvA(acceptence_mask);
 	/* Set message ID mask */
-	can->CAN_MB[mailbox_id].CAN_MAM = id_mask | CAN_MAM_MIDE;
+	can->CAN_MB[mailbox_id].CAN_MID = CAN_MID_MIDvA(id_mask);
 	/* Set box into RX mode */
 	can->CAN_MB[mailbox_id].CAN_MMR =
 		(can->CAN_MB[mailbox_id].CAN_MMR & ~CAN_MMR_MOT_Msk) |
@@ -233,7 +235,7 @@ void can_init(Can *can, uint32_t peripheral_clock_hz, uint32_t baudrate_kbps){
 	can_setPeripheralMux(can);
 	can_enablePMC(can);
 	if(!can_setBaudrate(can, peripheral_clock_hz, baudrate_kbps)){
-		return -1; //Illegal combination of peripheral_clock_hz and baudrate_kbps
+		return; //Illegal combination of peripheral_clock_hz and baudrate_kbps
 	}
 	
 	//Reset 8 all mailboxes
@@ -310,24 +312,23 @@ void can_enableRXInterrupt(Can *can){
 		NVIC_ClearPendingIRQ(CAN0_IRQn);
 		NVIC_SetPriority(CAN0_IRQn,5); // must be >= 5
 		NVIC_EnableIRQ(CAN0_IRQn);
-		}
-		else if (can == CAN1){
+	}else if(can == CAN1){
 		NVIC_DisableIRQ(CAN1_IRQn);
 		NVIC_ClearPendingIRQ(CAN1_IRQn);
 		NVIC_SetPriority(CAN1_IRQn,5); // must be >= 5
-		NVIC_EnableIRQ(CAN1_IRQn);
+		NVIC_EnableIRQ(CAN1_IRQn);	
 	}
 	can_writeProtectionDisable(can);
 	//enable all interrupts on mailboxes that are in RX mode
-	can->CAN_IER = 0xff & ~(1<<TX_BOX_ID);
+	can->CAN_IER = 0xff & ~(1<<TX_BOX_ID); 
 	can_writeProtectionEnable(can);
 }
 
-void can_disableRXInterrupt(Can *can){
+void can_disableRXInterrupt(Can *can){	
 	if (can == CAN0){
 		NVIC_DisableIRQ(CAN0_IRQn);
 		NVIC_ClearPendingIRQ(CAN0_IRQn);
-		}else if(can == CAN1){
+	}else if(can == CAN1){
 		NVIC_DisableIRQ(CAN1_IRQn);
 		NVIC_ClearPendingIRQ(CAN1_IRQn);
 	}

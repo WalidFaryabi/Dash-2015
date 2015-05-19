@@ -46,13 +46,16 @@ void init_CanHandling() {
 	xRemoteControlQueue = xQueueCreate(20,sizeof(uint8_t));
 	xDeviceStatusQueue	= xQueueCreate(20,sizeof(uint8_t));
 
-
-	can_init(CAN0,120000000,CAN_BPS_1000K);
-	can_init(CAN1,120000000,CAN_BPS_1000K);
 	uint32_t accept[7] = {0};
 	uint32_t id_mask[7] = {0};
+	//can_init(CAN0,120000000,CAN_BPS_1000K,accept,id_mask,can0_Handler);
+	//can_init(CAN1,120000000,CAN_BPS_1000K,accept,id_mask,can1_Handler);
+	can_init(CAN0,120000000,CAN_BPS_1000K);
+	can_init(CAN1,120000000,CAN_BPS_1000K);
 	can_setupFilters(CAN0,accept,id_mask);
 	can_setupFilters(CAN1,accept,id_mask);
+	can_enableRXInterrupt(CAN0);
+	can_enableRXInterrupt(CAN1);
 }
 
 // To read the RTT timer value register: (in ms)

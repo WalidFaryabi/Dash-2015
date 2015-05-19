@@ -17,6 +17,7 @@ enum CanTXstatus {TRANSFER_OK = 0, TRANSFER_BUSY = 1};
 enum CANReceiveStatus {GOT_NEW_MESSAGE = 0, NO_NEW_MESSAGE = 1};
 
 typedef union can_data_t{
+	//INTIGERS
 	uint64_t u64;
 	int64_t  i64;
 	uint32_t u32[2];
@@ -25,8 +26,10 @@ typedef union can_data_t{
 	int16_t  i16[4];
 	uint8_t  u8[8];
 	int8_t   i8[8];
-	float	 f[2];
-	double   db;
+	
+	//FLOAT
+	float f[2];
+	double db;
 }CanData ;
 
 struct CanMessage{
@@ -36,11 +39,11 @@ struct CanMessage{
 };
 
 void can_init(Can *can, uint32_t peripheral_clock_hz, uint32_t baudrate_kbps);
+//When using can_setupFilters, CAN1_handler or/and CAN0_handler must be defined by user
 void can_setupFilters(Can *can, uint32_t acceptence_masks[7], uint32_t id_masks[7]);
 enum CanTXstatus can_sendMessage(Can *can, struct CanMessage message);	//NOT THREADSAFE
 enum CANReceiveStatus can_popMessage(Can *can, struct CanMessage *message); //NOT THREADSAFE
-//must enable interrupt in nvic for this to work. Handle the interrupt by defining a CAN_HANDLER() function
-void can_enableRXInterrupt(Can *can);
+
 
 
 #endif /* _CAN_H_ */
