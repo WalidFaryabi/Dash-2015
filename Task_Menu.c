@@ -1294,13 +1294,13 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 			case ID_TRQ_CONF_CH1:
 				switch (ReceiveMsg.data.u8[0]) {
 					case 0x0F:
-						confMsg->conf_trq_ch0 = TRQ_MIN_CONFIRMED;
+						confMsg->conf_trq_ch1 = TRQ_MIN_CONFIRMED;
 						break;
 					case 0xF0:
-						confMsg->conf_trq_ch0 = TRQ_MAX_CONFIRMED;
+						confMsg->conf_trq_ch1 = TRQ_MAX_CONFIRMED;
 						break;
 					case 0x00:
-						confMsg->conf_trq_ch0 = TRQ_NOCALIB;
+						confMsg->conf_trq_ch1 = TRQ_NOCALIB;
 						break;
 				}
 			break;
@@ -3105,8 +3105,8 @@ static void DrawDataloggerInterface() {
 			cmd_text(x_position_status_text,110,font_size,OPT_FLAT,"W [KB/s]:");
 			cmd_number(400,110,font_size,OPT_FLAT,datalogger_write_speed);
 			
-			cmd_text(x_position_status_text,140,font_size,OPT_FLAT,"FAIL COUNTER:");
-			cmd_number(420,140,font_size,OPT_CENTER,can_send_to_datalogger_queue_failed);
+			cmd_text(x_position_status_text,140,font_size,OPT_FLAT,"FAILS:");
+			cmd_number(425,146,font_size,OPT_CENTER,can_send_to_datalogger_queue_failed);
 			
 			cmd_text(x_position_status_text,200,font_size,OPT_FLAT,"USB NOT CONNECTED");
 		break;

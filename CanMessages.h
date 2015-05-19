@@ -7,8 +7,9 @@
 #include "canID_definitions.h"
 
 struct CanMessage IAmAlive = {
-	.dataLength = 0,
-	.messageID = ID_I_AM_ALIVE
+	.dataLength = 1,
+	.data = 0x12,
+	.messageID = ALIVE_DASH
 };
 
 struct CanMessage TorquePedalCalibrationMax = {

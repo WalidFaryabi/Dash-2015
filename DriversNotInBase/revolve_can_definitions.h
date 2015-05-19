@@ -116,6 +116,7 @@
 #define ALIVE_STEER_POS_UNINIT		0x0F
 #define ALIVE_TRQ					0x10
 #define ALIVE_TRQ_UNINIT			0x11
+#define ALIVE_DASH					0x12
 
 //-------------------------------------------------------------------------------
 /*	------- Module ID overrides	 ----------------------------------------------*/

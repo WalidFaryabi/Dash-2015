@@ -86,8 +86,8 @@ void dataLoggerTask() {
 	
 	// Create and start logging to a new file automatically
 	xSemaphoreTake(file_access_mutex,portMAX_DELAY);
-	createOpenSeekNewFile();
-	dataloggerState = DATALOGGER_LOGGING;
+	//createOpenSeekNewFile();
+	//dataloggerState = DATALOGGER_LOGGING;
 	
 	while(1) {
 		

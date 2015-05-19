@@ -101,11 +101,14 @@ void CAN0_Handler() {
 				//***************************************//
 				//--------------DASH TASK----------------//
 				//***************************************//
+				case ID_TRQ_CONF:
+					message.messageID = ID_TRQ_CONF_CH0;
+					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
+				break;
+				
 				case ID_IN_ECU_TRACTION_CONTROL:
 				case ID_ECU_PARAMETER_CONFIRMED:
 				case ID_BMS_MAX_MIN_VALUES:
-				case ID_TRQ_CONF_CH0:
-				case ID_TRQ_CONF_CH1:
 				case ID_TORQUE_ENCODER_0_DATA:
 				case ID_TORQUE_ENCODER_1_DATA:
 				case ID_ECU_CAR_STATES:
@@ -164,7 +167,10 @@ void CAN1_Handler() {
 					//***************************************//
 					//--------------DASH TASK----------------//
 					//***************************************//
-				
+					case ID_TRQ_CONF:
+					message.messageID = ID_TRQ_CONF_CH1;
+					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
+					break;
 				
 					//*********ECU RELATED***********//
 					case ID_ECU_CAR_STATES:
@@ -174,7 +180,7 @@ void CAN1_Handler() {
 					//*******************************//
 				
 					//*******TORQUE AND STEERING*****//
-					case ID_TRQ_CONF_CH1:
+					
 					case ID_TORQUE_ENCODER_1_DATA:
 					//*******************************//
 				
