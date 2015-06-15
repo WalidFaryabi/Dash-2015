@@ -8,8 +8,8 @@
 
 struct CanMessage IAmAlive = {
 	.dataLength = 1,
-	.data = 0x12,
-	.messageID = ALIVE_DASH
+	.data.u8[0] = ALIVE_DASH,
+	.messageID = ID_ALIVE
 };
 
 struct CanMessage TorquePedalCalibrationMax = {

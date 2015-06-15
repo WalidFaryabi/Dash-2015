@@ -16,6 +16,7 @@
 #include "DriversNotInBase/FT800.h"
 
 #include <string.h>
+#include <math.h>
 
 //**********************************************************************************//
 //------------------------------------ENUMS FOR THIS C FILE-------------------------//
@@ -49,7 +50,6 @@ static void HandleErrors(ModuleError *error);
 
 static EPedalPosition getTorquePedalPosition(SensorPhysicalValues *sensorPhysicalValue);
 static EPedalPosition getBrakePedalPosition(SensorPhysicalValues *sensorPhysicalValue);
-static bool bmsNotCharged(SensorPhysicalValues *sensorPhysicalValue);
 
 static void calibrateSteering(ConfirmationMsgs *confMsg,bool ack_pressed);
 static void calibrateTorquePedal(ConfirmationMsgs *confMsg,bool ack_pressed);
@@ -83,7 +83,7 @@ static void sensorValueToRealValue(SensorValues *sensorValue,SensorPhysicalValue
 //***********************************************************************************
 //------------------------------------DRAWING FUNCTIONS----------------------------//
 //***********************************************************************************
-static void DrawMainScreen(SensorPhysicalValues *sensor,uint8_t low_volt, uint8_t high_volt, DeviceState *devices);
+static void DrawMainScreen(SensorPhysicalValues *sensor,DeviceState *devices);
 static void DrawLowVoltageBattery(uint8_t battery_left_percent);
 static void DrawHighVoltageBattery(uint8_t battery_left_percent);
 static void DrawHighVoltageSymbol();
@@ -99,10 +99,12 @@ static void DrawDeviceStatusMenu(DeviceState *deviceState);
 
 static void DrawTorqueCalibrationScreen(ConfirmationMsgs *confMsg);
 static void DrawSteerCalibScreen();
-static void DrawDriveEnableWarning(bool torque_pedal, bool brake_pedal, bool bms_discharge);
+static void DrawDriveEnableWarning();
 static void DrawLaunchControlProcedure();
 static void DrawDataloggerInterface();
 
+static void DrawIMUScreen(SensorPhysicalValues *sensorData);
+static void DrawIMUFloat(uint16_t x, uint16_t y, uint8_t font_size, float f);
 static void DrawFloat(uint16_t x, uint16_t y, uint8_t font_size, float f);
 static void DrawPresetMenu();
 static void DrawPresetProcedure();
@@ -173,7 +175,7 @@ const MenuEntry menu[] = {
 	{menu_202, 9,	5,	7,	0,	10, 19,	2,  MAIN_MENU,			NO_SETTING,					0,0},						//6  Steer calib
 	{menu_203, 9,	6,	8,	0,	11, 20,	3,  MAIN_MENU,			NO_SETTING,					0,0},						//7	 Torque Pedal Calibration
 	{menu_204, 9,	7,	9,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0,0},						//8  ECU Options
-	{menu_205, 9,	8,	10,	5,	9,  9,	5,  MAIN_MENU,			NO_SETTING,					0,0},						//9  IMU options
+	{menu_205, 9,	8,	10,	5,	9,  40,	5,  MAIN_MENU,			NO_SETTING,					0,0},						//9  IMU options
 	{menu_206, 9,	9,	11,	6,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0,0},						//10 Snake
 	{menu_207, 9,	10,	12,	7,	11, 25,	7,  MAIN_MENU,			NO_SETTING,					0,0},						//11 Datalogger
 	{menu_208, 9,	11,	12,	8,	12, 29,	8,  MAIN_MENU,			NO_SETTING,					0,0},						//12 Preset parameters
@@ -213,7 +215,8 @@ const MenuEntry menu[] = {
 	{"YES",       2,37,	37, 37,	38, 39,	0,	PRESET_CONFIRM,		CONFIRM_YES,			0,0},							//37 Preset Yees
 	{"NO",        2,38,	38, 37,	38, 29,	1,	PRESET_CONFIRM,		CONFIRM_NO,				0,0},							//38 Preset 
 		
-	{"PRELOCK",   1,39,	39, 39,	39, 39,	0,	PRESET_PROCEDURE,	NO_SETTING,				0,0}							//39 Preset option
+	{"PRELOCK",   1,39,	39, 39,	39, 39,	0,	PRESET_PROCEDURE,	NO_SETTING,				0,0},							//39 Preset option
+	{"IMU INFO",  1,40,	40, 9,	40, 40,	0,	IMU_INFORMATION,	NO_SETTING,				0,0},							//40 IMU Information screen
 		
 	
 	//{menu_703, 4,	27,	28,	11,	28, 28,	3,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//28 Delete all files
@@ -271,7 +274,7 @@ static uint8_t			lc_timer_count					= 0; // Countdown timer for launch control
 //***********************************************************************************
 //---------------------------FILE GLOBAL STATE VARIABLES------------------------------//
 //***********************************************************************************
-static ECarState					carState					= TRACTIVE_SYSTEM_ON;
+static ECarState					carState					= TRACTIVE_SYSTEM_OFF;
 static ESteerCalibState				steeringCalibrationState	= STEER_C_OFF;
 static ETorquePedalCalibrationState torquePedalCalibrationState	= TRQ_CALIBRATION_OFF;
 static EPresetStates				presetProcedureState		= PRESET_PROCEDURE_OFF;
@@ -331,9 +334,48 @@ EAdjustmentParameter presetSetting;
 //***********************************************************************************
 //----------------------------------THRESHOLDS AND CRITICAL VALUES-----------------//
 //***********************************************************************************
-#define TORQUE_PEDAL_THRESHOLD	25 
-#define BRAKE_PEDAL_THRESHOLD	4500
+#define TORQUE_PEDAL_IN_THRESHOLD	100 // 10 % of total range which is 1000 
+#define BRAKE_PEDAL_IN_THRESHOLD	1600
+
 #define BATTERY_TEMP_CRITICAL_HIGH 90
+#define MAX_CELL_VOLTAGE_TRESHOLD 4.2 
+#define MIN_CELL_VOLTAGE_TRESHOLD 3.2
+#define BATTERY_PACK_MAX_VOLTAGE_TRESHOLD 600
+#define BATTERY_PACK_MIN_VOLTAGE_TRESHOLD 475
+
+#define GLV_MAX_CELL_VOLTAGE_TRESHOLD 4.2
+#define GLV_MIN_CELL_VOLTAGE_TRESHOLD 3.2
+#define GLV_PACK_MAX_VOLTAGE_TRESHOLD 28
+#define GLV_PACK_MIN_VOLTAGE_TRESHOLD 20
+
+// TEMPERATURE CONVERSION COEFFICIENTS
+#define TEMP_C_1 0.000000000007175
+#define TEMP_C_2 0.000000367
+#define TEMP_C_3 0.009898
+#define TEMP_C_4 124.831
+
+// IMU CONVERSION CONSTANTS
+#define IMU_ROT_G_C	0.000125
+#define IMU_VEL_C	0.00076923
+#define IMU_POS_C	10.0
+
+#define BMS_MAX_TEMP_TRESHOLD		45
+#define GLVBMS_MAX_TEMP_THRESHOLD	45
+
+#define GLV_BATTERY_FULL_VOLTAGE	29.4
+#define GLV_BATTERY_EMPTY_VOLTAGE	21.7
+#define GLV_BATTERY_VOLTAGE_RANGE	(GLV_BATTERY_FULL_VOLTAGE-GLV_BATTERY_EMPTY_VOLTAGE)
+
+#define HV_BATTERY_FULL_VOLTAGE		604.8
+#define HV_BATTERY_EMPTY_VOLTAGE	446.4
+#define HV_BATTERY_VOLTAGE_RANGE	(HV_BATTERY_FULL_VOLTAGE - HV_BATTERY_EMPTY_VOLTAGE)
+
+// BMS STATE VECTOR
+#define BMS_OVER_VOLTAGE		1
+#define BMS_UNDER_VOLTAGE		2
+#define BMS_OVER_CURRENT		4
+#define BMS_OVER_TEMPERATURE	8
+#define BMS_VIC_STATUS			16
 
 //***********************************************************************************
 //--------------------------------FILE GLOBALS-------------------------------------//
@@ -342,6 +384,8 @@ static uint8_t selected_preset_file = 100;
 static bool RTDS_finished_playing = false;
 static uint8_t prev_selected = 0;
 static bool send_alive = false;
+
+//Legge til tilstand til BSPD IMD og bMS i en meny
 //***********************************************************************************
 //------------------------------------THE MAIN DASH FUNCTIONS-----------------------//
 //***********************************************************************************
@@ -409,6 +453,7 @@ void dashTask() {
 		//Get relevant CAN messages from the specified freeRTOS queue
 		getDashMessages(&parameter,&confMsg,&error,&sensorValue, &status,&sensorPhysicalValue);
 		xSemaphoreTake(xButtonStruct, portMAX_DELAY);
+		
 		dashboardControlFunction(&btn,&error,&sensorValue,&status,&confMsg, &deviceState,&parameter,&sensorPhysicalValue);
 		xSemaphoreGive(xButtonStruct);
 		//vTaskDelay(35/portTICK_RATE_MS);
@@ -426,7 +471,7 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 	}
 	
 	if (RTDS_finished_playing) {
-		can_freeRTOSSendMessage(CAN0, FinishedRTDS);
+		can_freeRTOSSendMessage(CAN1, FinishedRTDS);
 		RTDS_finished_playing = false;
 	}
 	
@@ -470,7 +515,7 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 		case MAIN_SCREEN:
 		if ((menuUpdate.update_menu == true) ) {
 			menuUpdate.update_menu = false;
-			DrawMainScreen(sensorPhysicalValue,100,100, deviceState);
+			DrawMainScreen(sensorPhysicalValue, deviceState);
 		}
 		break;
 		case MAIN_MENU:
@@ -529,6 +574,12 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 			presetProcedureHandling(false,confMsg);
 		}
 		break;
+		case IMU_INFORMATION:
+			if (menuUpdate.update_menu == true) {
+				menuUpdate.update_menu = false;
+				DrawIMUScreen(sensorPhysicalValue);
+			}
+			break;
 	}
 }
 
@@ -748,12 +799,10 @@ static void changeCarState(ConfirmationMsgs *confMsg, StatusMsg *status, SensorP
 			break;
 		case DRIVE_ENABLED:
 			if (status->shut_down_circuit_closed == false) {
-				can_sendMessage(CAN0,TorquePedalCalibrationMax);
 				carState = TRACTIVE_SYSTEM_OFF;
 			}
 			else if (confMsg->drive_disabled_confirmed == true) {
 				carState = TRACTIVE_SYSTEM_ON;
-				can_sendMessage(CAN1,FinishedRTDS);
 				confMsg->drive_disabled_confirmed = false;
 			}
 			else if (confMsg->lc_request_confirmed == true) {
@@ -986,7 +1035,7 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 			case PERSISTENT_MSG:
 				//If a persistent msg is acknowledged the user is returned to the main screen
 				selected = 0; //Return to main screen
-				DrawMainScreen(sensorPhysicalValue,100,100,deviceState);
+				DrawMainScreen(sensorPhysicalValue,deviceState);
 			break;
 			case TRQ_CALIB:
 				calibrateTorquePedal(confMsg,true);
@@ -1061,48 +1110,15 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 		else if (carState == TRACTIVE_SYSTEM_ON) {
 			//Request car start
 			// If criterias satisfied
-			can_freeRTOSSendMessage(CAN1, RequestDriveEnable);
-		}
-		
-		/*if (btn->drive_switch_disable == true) {
-			btn->drive_switch_disable = false;
-			if (carState == DRIVE_ENABLED) {
-				// Send CAN message to ECU to disable drive
-				 
-				// Cofirmation is handled in control function
+			
+			if ( (getTorquePedalPosition(sensorPhysicalValue) == PEDAL_OUT) && (getBrakePedalPosition(sensorPhysicalValue) == PEDAL_IN) ) {
+				can_freeRTOSSendMessage(CAN1, RequestDriveEnable);
+			}
+			else {
+				selected = DRIVE_ENABLE_WARNING_SEL;
+				DrawDriveEnableWarning();
 			}
 		}
-		else if (btn->drive_switch_enable == true) {
-			btn->drive_switch_enable = false;
-			bool drive_enable_criterias = true;
-			bool torque_pedal_not_pressed = false;
-			bool brake_pedal_not_pressed = false;
-			bool bms_discharge = false;
-			if (carState == TRACTIVE_SYSTEM_ON) {
-				if (getTorquePedalPosition(sensorPhysicalValue) ) {
-					drive_enable_criterias = false;
-					torque_pedal_not_pressed = true;
-				}
-				if (getBrakePedalPosition(sensorPhysicalValue)) {
-					brake_pedal_not_pressed = true;
-					drive_enable_criterias = false;
-				}
-				if (bmsNotCharged(sensorPhysicalValue)) {
-					bms_discharge = true;
-					drive_enable_criterias = false;	
-				}	
-				if (drive_enable_criterias == true) {
-					// Send CAN message to ECU to enable drive
-					// Confirmation and state change handled in control function
-				}
-				else {
-					// Setting selected to drive enable message menu element. The only way to remove the
-					// warning is to acknowledge
-					selected = DRIVE_ENABLE_WARNING_SEL;
-					DrawDriveEnableWarning(torque_pedal_not_pressed,brake_pedal_not_pressed,bms_discharge);
-				}
-			}
-		}*/
 	}
 	btn->rotary_ccw = false;
 	btn->rotary_cw  = false;
@@ -1164,7 +1180,7 @@ static void NavigateMenu(DeviceState *deviceState, ParameterValue *parameter, Mo
 
 	switch (menu[selected].current_menu) {
 		case MAIN_SCREEN:
-		DrawMainScreen(sensorPhysicalValue,100,100,deviceState);
+		DrawMainScreen(sensorPhysicalValue,deviceState);
 		break;
 		case SPEED:
 		DrawSpeedScreen(sensorPhysicalValue);
@@ -1213,13 +1229,20 @@ static void LEDHandler(SensorPhysicalValues *sensorPhysicalValue, ModuleError *e
 	else {
 		pio_setOutput(IMD_LED_PIO,IMD_LED_PIN,PIN_LOW);
 	}
-	if ( (sensorPhysicalValue->battery_temperature > BATTERY_TEMP_CRITICAL_HIGH) ) {
+	if ( (sensorPhysicalValue->BMS_max_temp > BMS_MAX_TEMP_TRESHOLD) ) {
 		pio_setOutput(TEMP_LED_PIO,TEMP_LED_PIN,PIN_HIGH);
 	}
 	else {
 		//set low
 		pio_setOutput(TEMP_LED_PIO,TEMP_LED_PIN,PIN_LOW);
 	}
+	if ( (sensorPhysicalValue->battery_voltage > BATTERY_PACK_MAX_VOLTAGE_TRESHOLD) || (sensorPhysicalValue->battery_voltage < BATTERY_PACK_MIN_VOLTAGE_TRESHOLD) ) {
+		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_HIGH);
+	}
+	else {
+		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_LOW);
+	}
+	
 	if (error->ecu_error != 0) {
 		pio_setOutput(ECU_LED_PIO,ECU_LED_PIN,PIN_HIGH);
 	}
@@ -1318,15 +1341,23 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 				}
 			break;
 			
-			case ID_BMS_TRACTIVE_SYSTEM_ACTIVE:
-				if (ReceiveMsg.data.u8[0] == 0xA5){
+			
+			case BMS_STATE_MSG_ID:
+			// Using "shut_down_circuit_closed" as tractive system activated variable
+				error->BMS_state_vector = ReceiveMsg.data.u16[0];
+				if (ReceiveMsg.data.u8[2] == 2 ) {
 					status->shut_down_circuit_closed = true;
+					error->ams_error = false;
 				}
-				else if (ReceiveMsg.data.u8[0] == 0x01) {
+				else if ( ReceiveMsg.data.u8[2] == 3) {
+					error->ams_error = true;
 					status->shut_down_circuit_closed = false;
 				}
+				else {
+					status->shut_down_circuit_closed = false;
+					error->ams_error = false;
+				}
 			break;
-			
 			
 			case ID_ECU_CAR_STATES:
 				switch (ReceiveMsg.data.u8[0]) {
@@ -1355,7 +1386,6 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 			case ID_IN_ECU_LC:
 				switch (ReceiveMsg.data.u8[0]) {
 					case 0xF0:
-					//Last year has only lc ready and launch end. Makes more sense with lc request confirmed and lc ready and maybe launch end
 					//Launch ready
 					confMsg->lc_ready = true;
 					break;
@@ -1383,27 +1413,71 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 			case ID_IN_ECU_SELECTED_PRESET:
 				selected_preset_file = ReceiveMsg.data.u8[0];
 			break;
+			case GLVBMS_MAXMIN_VAL_ID:
+				sensorPhysicalValue->GLV_voltage_max_cell = (ReceiveMsg.data.u16[0]/(float) 10000);
+				sensorPhysicalValue->GLV_voltage_min_cell = (ReceiveMsg.data.u16[1]/(float) 10000);
 				
-			case ID_BMS_MAX_MIN_VALUES:
-				sensorPhysicalValue->max_cell_voltage_lsb = ReceiveMsg.data.u8[0];
-				sensorPhysicalValue->max_cell_voltage_msb = ReceiveMsg.data.u8[1];
+				sensorPhysicalValue->GLVBMS_max_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[0],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[0],2) - TEMP_C_3*(ReceiveMsg.data.u16[0]) + TEMP_C_4;
+				sensorPhysicalValue->GLVBMS_min_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[1],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[1],2) - TEMP_C_3*(ReceiveMsg.data.u16[1]) + TEMP_C_4;
+			break;
+			case GLVBMS_TOTVTG_ID:
 				
-				sensorPhysicalValue->min_cell_voltage_lsb = ReceiveMsg.data.u8[2];
-				sensorPhysicalValue->min_cell_voltage_lsb = ReceiveMsg.data.u8[3];
+				sensorPhysicalValue->GLV_voltage = (ReceiveMsg.data.u32[0]/(float) 10000);
+				if (( sensorPhysicalValue->GLV_voltage > GLV_BATTERY_EMPTY_VOLTAGE) && (sensorPhysicalValue->GLV_voltage < GLV_BATTERY_FULL_VOLTAGE)) {
+					sensorPhysicalValue->GLV_battery_percent = ( (sensorPhysicalValue->GLV_voltage - GLV_BATTERY_EMPTY_VOLTAGE) / GLV_BATTERY_VOLTAGE_RANGE )*100;
+				}
+			break;
+			case BMS_TOTVTG_ID:
+				sensorPhysicalValue->battery_voltage = (ReceiveMsg.data.u32[0]/(float) 10000);
+				if (( sensorPhysicalValue->battery_voltage > HV_BATTERY_EMPTY_VOLTAGE) && (sensorPhysicalValue->battery_voltage < HV_BATTERY_FULL_VOLTAGE)) {
+					sensorPhysicalValue->HV_battery_percent =  ( (sensorPhysicalValue->battery_voltage - HV_BATTERY_EMPTY_VOLTAGE) / HV_BATTERY_VOLTAGE_RANGE )*100;
+				}
 				
-				sensorPhysicalValue->max_battery_temperature_lsb = ReceiveMsg.data.u8[4];
-				sensorPhysicalValue->max_battery_temperature_msb = ReceiveMsg.data.u8[5];
+			break;
+			case BMS_MAXMIN_VTG_ID:
+				sensorPhysicalValue->max_cell_id = ReceiveMsg.data.u16[3];
+				sensorPhysicalValue->min_cell_id = ReceiveMsg.data.u16[4];
 				
-				sensorPhysicalValue->min_battery_temperature_lsb = ReceiveMsg.data.u8[6];
-				sensorPhysicalValue->min_battery_temperature_msb = ReceiveMsg.data.u8[7];
+				sensorPhysicalValue->max_cell_voltage = (ReceiveMsg.data.u16[0]/(float) 10000);
+				sensorPhysicalValue->min_cell_voltage = (ReceiveMsg.data.u16[1]/(float) 10000);
+				
+// 				sensorPhysicalValue->max_battery_temperature_lsb = ReceiveMsg.data.u8[4];
+// 				sensorPhysicalValue->max_battery_temperature_msb = ReceiveMsg.data.u8[5];
+// 				
+// 				sensorPhysicalValue->min_battery_temperature_lsb = ReceiveMsg.data.u8[6];
+// 				sensorPhysicalValue->min_battery_temperature_msb = ReceiveMsg.data.u8[7];
+			break;
+			case BMS_MAXMIN_TEMP_ID:
+				sensorPhysicalValue->BMS_max_temp_cell_id = ReceiveMsg.data.u16[3];
+				sensorPhysicalValue->BMS_min_temp_cell_id = ReceiveMsg.data.u16[4];
+				
+				sensorPhysicalValue->BMS_max_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[0],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[0],2) - TEMP_C_3*(ReceiveMsg.data.u16[0]) + TEMP_C_4;
+				sensorPhysicalValue->BMS_min_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[1],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[1],2) - TEMP_C_3*(ReceiveMsg.data.u16[1]) + TEMP_C_4;
+			
+			break;
+			
+// 			case GLVBMS_TEMP_ID:
+// 				sensorPhysicalValue->GLVBMS_max_temp_cell_id = ReceiveMsg.data.u16[3];
+// 				sensorPhysicalValue->GLVBMS_min_temp_cell_id = ReceiveMsg.data.u16[4];
+// 				
+// 				//Temp = -7.175*10^(-12) * (x^3) + 3.67*10^(-7) * (x^2) - 9.898 *10 ^(-3) * ( x ) + 124.831
+// 			
+// 				sensorPhysicalValue->GLVBMS_max_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[0],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[0],2) - TEMP_C_3*(ReceiveMsg.data.u16[0]) + TEMP_C_4;
+// 				sensorPhysicalValue->GLVBMS_min_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[1],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[1],2) - TEMP_C_3*(ReceiveMsg.data.u16[1]) + TEMP_C_4;
+// 			break;
+			case CAN_INVERTER_DATA_VOLTAGE_ID:
+				sensorPhysicalValue->Inverter_voltage = ReceiveMsg.data.f[0];
+			break;
+			case ID_STEERING_ENCODER_DATA:
+				sensorPhysicalValue->steering_enc_data = ReceiveMsg.data.u8[0] << 8 | ReceiveMsg.data.u8[1];
 			break;
 			
 			case ID_TORQUE_ENCODER_0_DATA:
-				sensorPhysicalValue->torque_encoder_ch0 = ReceiveMsg.data.u8[0];
+				sensorPhysicalValue->torque_encoder_ch0 = ReceiveMsg.data.u8[0] << 8 | ReceiveMsg.data.u8[1];
 			break;
 				
 			case ID_TORQUE_ENCODER_1_DATA:
-				sensorPhysicalValue->torque_encoder_ch1 = ReceiveMsg.data.u8[0];
+				sensorPhysicalValue->torque_encoder_ch1 = ReceiveMsg.data.u8[0] << 8 | ReceiveMsg.data.u8[1];
 			break;	
 				
 				
@@ -1419,11 +1493,13 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 				sensorValue->temp_sensor_gearbox = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
 				break;
 			case ID_BRAKE_PRESSURE_FL:
-				sensorValue->brake_pressure_fl = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
+				sensorPhysicalValue->brake_pressure_fl = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
+				//sensorValue->brake_pressure_fl = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
 				break;
 				//(brk_pres_front-3960)/120)
 			case ID_BRAKE_PRESSURE_FR:
-				sensorValue->brake_pressure_fr = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
+				sensorPhysicalValue->brake_pressure_fr = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]); // Linear
+				//sensorValue->brake_pressure_fr = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
 				break;
 			case ID_DAMPER_FL:
 			case ID_DAMPER_FR:
@@ -1433,6 +1509,27 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 			case ID_IMD_SHUTDOWN:
 				error->imd_error = true;
 				break;
+				
+			//*********************************************************//
+			//************************IMU DATA*************************//
+			//*********************************************************//
+			case ID_IMU_ROT_DATA:
+				sensorPhysicalValue->IMU_rot_x	=	((float) (ReceiveMsg.data.u16[0]))*IMU_ROT_G_C;
+				sensorPhysicalValue->IMU_rot_y	=	((float) (ReceiveMsg.data.u16[1]))*IMU_ROT_G_C;
+				sensorPhysicalValue->IMU_rot_z	=	((float) (ReceiveMsg.data.u16[2]))*IMU_ROT_G_C;
+			break;
+			case ID_IMU_G_FORCE_DATA:
+				sensorPhysicalValue->IMU_G_x	=	((float) (ReceiveMsg.data.u16[0]))*IMU_ROT_G_C;
+				sensorPhysicalValue->IMU_G_y	=	((float) (ReceiveMsg.data.u16[1]))*IMU_ROT_G_C;
+				sensorPhysicalValue->IMU_G_z	=	((float) (ReceiveMsg.data.u16[2]))*IMU_ROT_G_C;
+			break;
+			case ID_IMU_POSITION_DATA:
+			break;
+			case ID_IMU_VELOCITY_DATA:
+				sensorPhysicalValue->IMU_vel_x	=	((float) (ReceiveMsg.data.u16[0]))*IMU_VEL_C;
+				sensorPhysicalValue->IMU_vel_y	=	((float) (ReceiveMsg.data.u16[1]))*IMU_VEL_C;
+				sensorPhysicalValue->IMU_vel_z	=	((float) (ReceiveMsg.data.u16[2]))*IMU_VEL_C;
+			break;
 		}
 	}
 }
@@ -1763,24 +1860,18 @@ static void calibrateSteering(ConfirmationMsgs *confMsg,bool ack_pressed) {
 
 
 static EPedalPosition getTorquePedalPosition(SensorPhysicalValues *sensorPhysicalValue) {
-	if ( (sensorPhysicalValue->torque_encoder_ch0 < TORQUE_PEDAL_THRESHOLD ) && (sensorPhysicalValue->torque_encoder_ch1 < TORQUE_PEDAL_THRESHOLD) ) {
-		return PEDAL_IN;
+	if ( (sensorPhysicalValue->torque_encoder_ch0 < TORQUE_PEDAL_IN_THRESHOLD ) && (sensorPhysicalValue->torque_encoder_ch1 < TORQUE_PEDAL_IN_THRESHOLD) ) {
+		return PEDAL_OUT;
 	}
-	else return PEDAL_OUT;
+	else return PEDAL_IN;
 }
 static EPedalPosition getBrakePedalPosition(SensorPhysicalValues *sensorPhysicalValue) {
-	if (sensorPhysicalValue->brake_pedal_actuation < BRAKE_PEDAL_THRESHOLD) { //brakePedalEngagedThreshold) {
-		return PEDAL_IN;
+	if ((sensorPhysicalValue->brake_pressure_fr < BRAKE_PEDAL_IN_THRESHOLD)  && (sensorPhysicalValue->brake_pressure_fl < BRAKE_PEDAL_IN_THRESHOLD) )  { //brakePedalEngagedThreshold) {
+		return PEDAL_OUT;
 	}
-	else return PEDAL_OUT;
+	else return PEDAL_IN;
 }
-static bool bmsNotCharged(SensorPhysicalValues *sensorPhysicalValue) {
-	uint8_t bms_discharge_threshold = 50;
-	if ( sensorPhysicalValue->bms_discharge_limit < bms_discharge_threshold ) {
-		return false;
-	}
-	else return true;
-}
+
 
 static void vRTDSCallback(TimerHandle_t xTimer) {
 	pio_setOutput(BUZZER_PIO,BUZZER_PIN,PIN_LOW);
@@ -1830,30 +1921,58 @@ static void iAmAliveTimerCallback(TimerHandle_t pxTimer) {
 static void initSensorRealValueStruct(SensorPhysicalValues *sensorReal) {
 	sensorReal->torque_encoder_ch0 = 0;
 	sensorReal->torque_encoder_ch1 = 0;
-	sensorReal->brake_pressure_rear = 0;
-	sensorReal->brake_pressure_front = 0;
-	sensorReal->steering_angle = 0;
 	
-	sensorReal->min_battery_temperature = 0;
-	sensorReal->battery_temperature = 0;
-	sensorReal->max_battery_temperature = 0;
+	sensorReal->brake_pressure_fl = 0;
+	sensorReal->brake_pressure_fr = 0;
+	
+	sensorReal->steering_enc_data = 0;
+
 	sensorReal->motor_temperature = 0;
 	sensorReal->IGBT_temperature = 0;
 	sensorReal->gearbox_temperature = 0;
 	
-	sensorReal->battery_voltage = 0;
-	sensorReal->min_cell_voltage_lsb = 0;
-	sensorReal->min_cell_voltage_msb = 0;
-	sensorReal->min_cell_id = 0;
-	sensorReal->max_cell_voltage_msb = 0;
-	sensorReal->max_cell_voltage_lsb = 0;
-	sensorReal->max_cell_id = 0;
-	sensorReal->GLV_voltage_msb = 0;
-	sensorReal->GLV_voltage_lsb = 0;
+	sensorReal->BMS_max_temp = 0;
+	sensorReal->BMS_min_temp = 0;
+	sensorReal->BMS_max_temp_cell_id = 0;
+	sensorReal->BMS_min_temp_cell_id = 0;
 	
-	sensorReal->car_speed = 0;
-	sensorReal->bms_discharge_limit = 0;
-	sensorReal->brake_pedal_actuation = 0;
+	sensorReal->GLVBMS_max_temp = 0;
+	sensorReal->GLVBMS_max_temp_cell_id = 0;
+	sensorReal->GLVBMS_min_temp = 0;
+	sensorReal->GLVBMS_min_temp_cell_id = 0;
+	
+	sensorReal->battery_voltage = 0;
+	sensorReal->min_cell_voltage = 0;
+	sensorReal->min_cell_id = 0;
+	sensorReal->max_cell_voltage = 0;
+	sensorReal->max_cell_id = 0;
+	
+	sensorReal->GLV_max_cell_id = 0;
+	sensorReal->GLV_min_cell_id = 0;
+	sensorReal->GLV_voltage_max_cell = 0;
+	sensorReal->GLV_voltage_min_cell = 0;
+	sensorReal->GLV_voltage = 0;
+	
+	sensorReal->GLV_battery_percent = 100;
+	sensorReal->HV_battery_percent = 100;
+	
+	sensorReal->IMU_rot_x = 0;
+	sensorReal->IMU_rot_y = 0;
+	sensorReal->IMU_rot_z = 0;
+	
+	sensorReal->IMU_G_x = 0;
+	sensorReal->IMU_G_y = 0;
+	sensorReal->IMU_G_z = 0;
+	
+	sensorReal->IMU_pos_x = 0;
+	sensorReal->IMU_pos_y = 0;
+
+	sensorReal->IMU_vel_x = 0;
+	sensorReal->IMU_vel_y = 0;
+	sensorReal->IMU_vel_z = 0;
+	
+	
+
 }
 static void initSensorValueStruct(SensorValues *sensorValue) {
 	sensorValue->bms_discharge_limit = 0;
@@ -1864,7 +1983,7 @@ static void initSensorValueStruct(SensorValues *sensorValue) {
 
 }
 static void initStatusStruct(StatusMsg *status) {
-	status->shut_down_circuit_closed = true;
+	status->shut_down_circuit_closed = false;
 }
 static void initConfirmationMessagesStruct(ConfirmationMsgs *confMsg) {
 	confMsg->drive_disabled_confirmed	= false;
@@ -1877,7 +1996,7 @@ static void initConfirmationMessagesStruct(ConfirmationMsgs *confMsg) {
 	confMsg->ECU_parameter_confirmed	= false;
 	}
 static void initErrorMessagesStruct(ModuleError *error) {
-	
+	error->BMS_state_vector = 0;
 	error->ams_error = false;
 	error->imd_error = false;
 	error->ecu_error   = 0;
@@ -1911,7 +2030,7 @@ static bool checkDeviceStatus(DeviceState *devices) {
 	if (devices->ECU == ALIVE && ( (devices->TRQ_0 == ALIVE) || (devices->TRQ_0 == UNITIALIZED) ) && ( (devices->TRQ_1 == ALIVE) || (devices->TRQ_1 == UNITIALIZED))
 	 && devices->BSPD == ALIVE && devices->TEL == ALIVE && devices->ADC_FR == ALIVE && \
 	devices->ADC_FL== ALIVE && devices->ADC_RR == ALIVE && devices->ADC_RL == ALIVE && devices->INV == ALIVE && devices->FAN == ALIVE && \
-	devices->BMS == ALIVE && devices->GLVBMS == ALIVE && devices->IMU == ALIVE && devices->STEER_POS == ALIVE && devices->IMD == ALIVE) {
+	devices->BMS == ALIVE && devices->GLVBMS == ALIVE && devices->STEER_POS == ALIVE && devices->IMD == ALIVE) {
 		return true;
 	}
 	else {
@@ -1981,7 +2100,7 @@ static void sensorValueToRealValue(SensorValues *sensorValue,SensorPhysicalValue
 //------------------------------------DRAWING FUNCTIONS----------------------------//
 //***********************************************************************************
 
-static void DrawMainScreen(SensorPhysicalValues *sensor,uint8_t low_volt, uint8_t high_volt,DeviceState *devices) {
+static void DrawMainScreen(SensorPhysicalValues *sensor,DeviceState *devices) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 	uint8_t text_font = 21;
@@ -2054,8 +2173,8 @@ static void DrawMainScreen(SensorPhysicalValues *sensor,uint8_t low_volt, uint8_
 // 	cmd(VERTEX2F(0,75*16));
 // 	cmd(VERTEX2F(243*16,75*16));
 
-	DrawLowVoltageBattery(low_volt);
-	DrawHighVoltageBattery(high_volt);
+	DrawLowVoltageBattery(sensor->GLV_battery_percent);
+	DrawHighVoltageBattery(sensor->HV_battery_percent);
 	DrawParallellogramMainScreen();
 	
 	cmd(DISPLAY()); // display the image
@@ -2192,180 +2311,326 @@ static void DrawSystemMonitorScreen(ModuleError *error,SensorPhysicalValues *val
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 	
-	cmd(COLOR_RGB(255,255,0));
+	cmd(COLOR_RGB(255,255,255));
 	cmd_text(240,15,30,OPT_CENTER,"SYSTEM MONITOR");
 	cmd(COLOR_RGB(255,255,255));
 
-	cmd_text(60, 200, 26, OPT_CENTER, "Trq enc 0");
-	cmd_number(50, 230, 31, OPT_CENTER, val->torque_encoder_ch0);
-	cmd_text(95, 235, 22, OPT_CENTER, "%");
-
-	cmd_text(60, 130, 26, OPT_CENTER, "Trq enc 1");
-	cmd_number(50, 160, 31, OPT_CENTER, val->torque_encoder_ch1);
-	cmd_text(95, 165, 22, OPT_CENTER, "%");
+	
+	uint32_t trq_data_0 = val->torque_encoder_ch0;
+	uint32_t trq_data_1 = val->torque_encoder_ch1;
+	cmd_text(60, 200, 26, OPT_CENTER, "TRQ ENC 0");
+	if (val->torque_encoder_ch0 > 1000) {
+		cmd_text(50,230,26,OPT_CENTER,"ERROR");
+	}
+	else {
+		cmd_number(50, 230, 30, OPT_CENTER, trq_data_0);
+	}
 	
 	
-	cmd_text(180, 200, 26, OPT_CENTER, "Brk prs R");
-	cmd_number(165, 230, 31, OPT_CENTER, val->brake_pressure_rear);
-	cmd_text(225, 235, 22, OPT_CENTER, "%");
-	
-	cmd_text(180, 130, 26, OPT_CENTER, "Brk prs F");
-	cmd_number(165, 160, 31, OPT_CENTER, val->brake_pressure_front);
-	cmd_text(225, 165, 22, OPT_CENTER, "%");
-	
-	cmd_text(300, 200, 26, OPT_CENTER, "Steer ang");
-	cmd_number(290, 230, 31, OPT_CENTER, val->steering_angle);
-	
-	
-	cmd_text(120, 60, 28, OPT_CENTER, "ECU error");
-	cmd_text(125, 90, 26, OPT_CENTER, ecu_error_names[error->ecu_error]);
+	cmd_text(60, 130, 26, OPT_CENTER, "TRQ ENC 1");
+	if (val->torque_encoder_ch1 > 1000) {
+		cmd_text(50,160,26,OPT_CENTER,"ERROR");
+	}
+	else {
+		cmd_number(50, 160, 30, OPT_CENTER, trq_data_1);
+	}
+	//cmd_text(95, 235, 22, OPT_CENTER, "%");
+	//cmd_text(95, 165, 22, OPT_CENTER, "%");
 	
 	
-	cmd_text(360, 60, 28, OPT_CENTER, "BMS fault code");
-	cmd_text(360, 120, 28, OPT_CENTER, "BMS warning");
-	cmd_text(365, 90, 26, OPT_CENTER, bms_fault_names[error->bms_fault]);
-	cmd_text(365, 150, 26, OPT_CENTER, bms_warning_names[error->bms_warning]);
+	cmd_text(180, 200, 26, OPT_CENTER, "BRK FL");
+	cmd_number(165, 230, 31, OPT_CENTER, val->brake_pressure_fl);
+	//cmd_text(225, 235, 22, OPT_CENTER, "%");
+	
+	cmd_text(180, 130, 26, OPT_CENTER, "BRK FR");
+	cmd_number(165, 160, 31, OPT_CENTER, val->brake_pressure_fr);
+	//cmd_text(225, 165, 22, OPT_CENTER, "%");
+	
+	cmd_text(300, 200, 26, OPT_CENTER, "STEER ANGLE");
+	cmd_number(290, 230, 31, OPT_CENTER, val->steering_enc_data);
+	
+	
+	cmd_text(55, 60, 28, OPT_CENTER, "ECU ERROR");
+	cmd_text(55, 90, 26, OPT_CENTER, ecu_error_names[error->ecu_error]);
+	
+	
+	cmd_text(300, 50, 28, OPT_CENTER, "BMS STATE VECTOR");
+	//bit0 = overvoltage, bit1 = undervoltage, bit2 = overcurrent, bit3 = overtemp, bit 4 = vic status,
+	if ( error->BMS_state_vector & BMS_OVER_VOLTAGE) {
+		cmd(COLOR_RGB(255,0,0));
+		cmd_text(200, 95, 30, OPT_CENTER, "OV");
+	}
+	else {
+		cmd(COLOR_RGB(0,255,0));
+		cmd_text(200, 95, 30, OPT_CENTER, "OV");
+	}
+	if (error->BMS_state_vector & BMS_UNDER_VOLTAGE) {
+		cmd(COLOR_RGB(255,0,0));
+		cmd_text(250, 95, 30, OPT_CENTER, "UV");
+	}
+	else {
+		cmd(COLOR_RGB(0,255,0));
+		cmd_text(250, 95, 30, OPT_CENTER, "UV");
+	}
+	
+	if (error->BMS_state_vector & BMS_OVER_CURRENT) {
+		cmd(COLOR_RGB(255,0,0));
+		cmd_text(300, 95, 30, OPT_CENTER, "OC");
+	}
+	else {
+		cmd(COLOR_RGB(0,255,0));
+		cmd_text(300, 95, 30, OPT_CENTER, "OC");
+	}
+	if (error->BMS_state_vector & BMS_OVER_TEMPERATURE) {
+		cmd(COLOR_RGB(255,0,0));
+		cmd_text(350, 95, 30, OPT_CENTER, "OT");
+	}
+	else {
+		cmd(COLOR_RGB(0,255,0));
+		cmd_text(350, 95, 30, OPT_CENTER, "OT");
+	}
+	if (error->BMS_state_vector & BMS_VIC_STATUS) {
+		cmd(COLOR_RGB(255,0,0));
+		cmd_text(400, 95, 30, OPT_CENTER, "VIC");
+	}
+	else {
+		cmd(COLOR_RGB(0,255,0));
+		cmd_text(400, 95, 30, OPT_CENTER, "VIC");
+	}
+// 	cmd_text(300, 95, 30, OPT_CENTER, "OC");
+// 	cmd_text(350, 95, 30, OPT_CENTER, "OT");
+// 	cmd_text(400, 95, 30, OPT_CENTER, "VIC");
+	
+	
+// 	cmd_text(360, 60, 28, OPT_CENTER, "BMS fault code");
+// 	cmd_text(360, 120, 28, OPT_CENTER, "BMS warning");
+// 	cmd_text(365, 90, 26, OPT_CENTER, bms_fault_names[error->bms_fault]);
+// 	cmd_text(365, 150, 26, OPT_CENTER, bms_warning_names[error->bms_warning]);
 	
 	cmd(DISPLAY()); // display the image
 	cmd(CMD_SWAP);
 	cmd_exec();
 	
 }
-static void DrawTempAndVoltScreen(SensorPhysicalValues *tempvolt) {
+static void DrawIMUScreen(SensorPhysicalValues *sensorData) {
+	uint8_t f_txt = 26;
+	uint8_t f_nr = 25;
+	
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
-	cmd(COLOR_RGB(255,255,0));
+	cmd(COLOR_RGB(255,255,255));
+	cmd_text(240,15,30,OPT_CENTER,"IMU DATA");
+	//***************************************************************//
+	//***********************COLUMN 1********************************//
+	//***************************************************************//
+	cmd_text(60, 60, 26, OPT_CENTER, "ROT X");
+	DrawIMUFloat(50,90,f_nr,sensorData->IMU_rot_x);
+	
+	cmd_text(60, 130, 26, OPT_CENTER, "ROT Y");
+	DrawIMUFloat(50,160,f_nr,sensorData->IMU_rot_y);
+	
+	cmd_text(60, 200, f_txt, OPT_CENTER, "ROT Z");
+	DrawIMUFloat(50,230,f_nr,sensorData->IMU_rot_z);
+	//***************************************************************//
+	//***********************COLUMN 2********************************//
+	//***************************************************************//
+	cmd_text(180, 60, 26, OPT_CENTER, "G FORCE X");
+	DrawIMUFloat(170,90,f_nr,sensorData->IMU_G_x);
+
+	cmd_text(180, 130, 26, OPT_CENTER, "G FORCE Y" );
+	DrawIMUFloat(170,160,f_nr,sensorData->IMU_G_y);
+	
+	cmd_text(180, 200, 26, OPT_CENTER, "G FORCE Z");
+	DrawIMUFloat(170,230,f_nr,sensorData->IMU_G_z);
+	//***************************************************************//
+	//***********************COLUMN 3********************************//
+	//***************************************************************//
+	cmd_text(290, 60, f_txt, OPT_CENTER, "POS X" );
+	DrawIMUFloat(280,90,f_nr,sensorData->IMU_pos_x);
+	
+	cmd_text(290, 130, f_txt, OPT_CENTER, "POS Y" );
+	DrawIMUFloat(280,160,f_nr,sensorData->IMU_pos_y);
+	//***************************************************************//
+	//***********************COLUMN 4********************************//
+	//***************************************************************//
+	cmd_text(400, 60, f_txt, OPT_CENTER, "VEL X" );
+	DrawIMUFloat(400,90,f_nr,sensorData->IMU_vel_x);
+	
+	cmd_text(400, 130, f_txt, OPT_CENTER, "VEL Y" );
+	DrawIMUFloat(400,160,f_nr,sensorData->IMU_vel_y);
+	
+	cmd_text(420, 200, 26, OPT_CENTER, "VEL Z" );
+	DrawIMUFloat(410,230,f_nr,sensorData->IMU_vel_z);
+	
+	cmd(DISPLAY()); // display the image
+	cmd(CMD_SWAP);
+	cmd_exec();
+}
+static void DrawIMUFloat(uint16_t x, uint16_t y, uint8_t font_size, float f) {
+	int integer_part; 
+	int fractional_part;
+	integer_part = (int) f;
+	if (integer_part < 0 ) {
+		cmd_text(x-29,y,font_size,OPT_CENTER,"-");
+		integer_part = -(int) f;
+		f = -f;
+	}
+	
+	fractional_part = (int) ( (f- integer_part)*10);
+	cmd_number(x,y,font_size,OPT_CENTER,integer_part);
+	cmd_text(x+30,y,font_size,OPT_CENTER,".");
+	cmd_number(x+40,y,font_size,OPT_CENTER,fractional_part);
+}
+
+
+static void DrawTempAndVoltScreen(SensorPhysicalValues *tempvolt) {
+	uint8_t f_txt = 26;
+	uint8_t f_nr = 25;
+	
+	cmd(CMD_DLSTART);
+	cmd(CLEAR(1, 1, 1)); // clear screen
+	cmd(COLOR_RGB(255,255,255));
 	cmd_text(240,15,30,OPT_CENTER,"TEMPERATURES AND VOLTAGES");
 	
 	cmd(COLOR_RGB(255,255,255));
-	cmd_text(60, 200, 26, OPT_CENTER, "Battery min");
-	cmd_number(50, 230, 31, OPT_CENTER, tempvolt->min_battery_temperature);
+	cmd_text(60, 60, 26, OPT_CENTER, "BMS MAX");
+	cmd_number(105, 60, 29, OPT_CENTER,tempvolt->BMS_max_temp_cell_id);
+	if(tempvolt->BMS_max_temp > BMS_MAX_TEMP_TRESHOLD){
+		cmd(COLOR_RGB(255,0,0));
+		cmd_number(50, 90, 31, OPT_CENTER, tempvolt->BMS_max_temp);
+		cmd_text(95, 95, 22, OPT_CENTER, "C");
+		cmd(COLOR_RGB(255,255,255));
+	}
+	else {
+		cmd(COLOR_RGB(255,255,255));
+		cmd_number(50, 90, 31, OPT_CENTER, tempvolt->BMS_max_temp);
+		cmd_text(95, 95, 22, OPT_CENTER, "C");
+	}
+	
+	cmd_text(60, 130, 26, OPT_CENTER, "BMS MIN");
+	cmd_number(105, 130, 29, OPT_CENTER,tempvolt->BMS_min_temp_cell_id);
+	cmd_number(50, 160, 31, OPT_CENTER, tempvolt->BMS_min_temp);
+	cmd_text(95, 165, 22, OPT_CENTER, "C");
+	
+	cmd(COLOR_RGB(255,255,255));
+	cmd_text(60, 200, f_txt, OPT_CENTER, "EMPTY");
+	cmd_number(50, 230, 31, OPT_CENTER, 0);
 	cmd_text(95, 235, 22, OPT_CENTER, "C");
 	
-	cmd_text(60, 130, 26, OPT_CENTER, "Battery avg");
-	if(tempvolt->battery_temperature>55){
-		cmd(COLOR_RGB(255,0,0));
-		cmd_number(50, 160, 31, OPT_CENTER,tempvolt->battery_temperature);
-		cmd_text(95, 165, 22, OPT_CENTER, "C");
-		cmd(COLOR_RGB(255,255,255));
-	}
-	else {
-		cmd_number(50, 160, 31, OPT_CENTER, tempvolt->battery_temperature);
-		cmd_text(95, 165, 22, OPT_CENTER, "C");
-	}
 	
-	cmd_text(60, 60, 26, OPT_CENTER, "Battery max");
-	if(tempvolt->max_battery_temperature>55){
+	cmd_text(180, 60, 26, OPT_CENTER, "GLVBMS MAX");
+	//cmd_number(235, 60, 27, OPT_CENTER, tempvolt->GLVBMS_max_temp_cell_id);
+	if(tempvolt->GLVBMS_max_temp > GLVBMS_MAX_TEMP_THRESHOLD){
 		cmd(COLOR_RGB(255,0,0));
-		cmd_number(50, 90, 31, OPT_CENTER, tempvolt->max_battery_temperature);
-		cmd_text(95, 95, 22, OPT_CENTER, "C");
-		cmd(COLOR_RGB(255,255,255));
-	}
-	else {
-		cmd_number(50, 90, 31, OPT_CENTER, tempvolt->max_battery_temperature);
-		cmd_text(95, 95, 22, OPT_CENTER, "C");
-	}
-	
-	
-	cmd_text(180, 60, 26, OPT_CENTER, "Motor" );
-	if(tempvolt->motor_temperature>110){
-		cmd(COLOR_RGB(255,0,0));
-		cmd_number(170, 90, 31, OPT_CENTER, tempvolt->motor_temperature);
+		cmd_number(170, 90, 31, OPT_CENTER, tempvolt->GLVBMS_max_temp);
 		cmd_text(215, 95, 29, OPT_CENTER, "C");
 		cmd(COLOR_RGB(255,255,255));
 	}
 	else {
-		cmd_number(170, 90, 31, OPT_CENTER, tempvolt->motor_temperature);
+		cmd_number(170, 90, 31, OPT_CENTER, tempvolt->GLVBMS_max_temp);
 		cmd_text(215, 95, 29, OPT_CENTER, "C");
 	}
 	
-	cmd_text(180, 130, 26, OPT_CENTER, "IGBT" );
-	cmd_number(170, 160, 31, OPT_CENTER, tempvolt->IGBT_temperature);
+	cmd_text(180, 130, 26, OPT_CENTER, "GLVBMS MIN" );
+	//cmd_number(235, 130, 27, OPT_CENTER, 0);//tempvolt->GLVBMS_min_temp_cell_id);
+	
+	cmd_number(170, 160, 31, OPT_CENTER, tempvolt->GLVBMS_min_temp);
 	cmd_text(215, 165, 29, OPT_CENTER, "C");
 	
 	
-	cmd_text(180, 200, 26, OPT_CENTER, "Gearbox" );
-	if(tempvolt->gearbox_temperature>70){
-		cmd(COLOR_RGB(255,0,0));
-		cmd_number(170, 230, 31, OPT_CENTER, tempvolt->gearbox_temperature);
-		cmd_text(215, 235, 29, OPT_CENTER, "C");
-		cmd(COLOR_RGB(255,255,255));
-		
-	}
-	else {
-		cmd_number(170, 230, 31, OPT_CENTER,  tempvolt->gearbox_temperature);
-		cmd_text(215, 235, 29, OPT_CENTER, "C");
-	}
+	int integer_part = (int) tempvolt->Inverter_voltage;
+	int fractional_part = (int) ( (tempvolt->Inverter_voltage - integer_part)*10);
+	cmd_text(180, 200, 26, OPT_CENTER, "INV VOLT" );
+	cmd_number(170,230,f_nr,OPT_CENTER,integer_part);
+	cmd_text(170+40,230,31,OPT_CENTER,".");
+	cmd_number(170+53,230,f_nr,OPT_CENTER,fractional_part);
 	
-	cmd_text(300, 130, 26, OPT_CENTER, "Btry pack");
-	if ( (tempvolt->battery_voltage > 600) || (tempvolt->battery_voltage < 475) ) {
-		cmd(COLOR_RGB(255,0,0));
-		cmd_number(290, 160, 31, OPT_CENTER, tempvolt->battery_voltage);
-		cmd_text(335, 165, 22, OPT_CENTER, "V");
-		cmd(COLOR_RGB(255,255,255));
-	}
-	else {
-		cmd_number(290, 160, 31, OPT_CENTER, tempvolt->battery_voltage);
-		cmd_text(335, 165, 22, OPT_CENTER, "V");
-	}
+
 	
-	cmd_text(290, 200, 26, OPT_CENTER, "Min cell" );
-	cmd_number(330, 200, 26, OPT_CENTER, tempvolt->min_cell_id);
-	
-	if( (tempvolt->min_cell_voltage_msb*10 +tempvolt->min_cell_voltage_lsb) < 32 ) {
-		//check_voltage_fl=true;
+	//cmd_number(170, 230, 31, OPT_CENTER, 0);
+	//cmd_text(215, 235, 29, OPT_CENTER, "C");
+
+
+	cmd_text(290, 60, f_txt, OPT_CENTER, "BMS MAX" );
+	cmd_text(330, 100, f_txt, OPT_CENTER, "V");
+	cmd_number(335, 60, 29, OPT_CENTER,tempvolt->max_cell_id);
+	if( tempvolt->max_cell_voltage > MAX_CELL_VOLTAGE_TRESHOLD ){
 		cmd(COLOR_RGB(255,0,0));
-		cmd_number(280, 230, 31, OPT_CENTER, tempvolt->min_cell_voltage_msb);
-		cmd_text(295, 230, 31, OPT_CENTER, "." );
-		cmd_number(310, 230, 31, OPT_CENTER, tempvolt->min_cell_voltage_lsb);
-		cmd_text(330, 235, 22, OPT_CENTER, "V");
-		cmd(COLOR_RGB(255,255,255));
-		}
-	else {
-		cmd_number(280, 230, 31, OPT_CENTER, tempvolt->min_cell_voltage_msb);
-		cmd_text(295, 230, 31, OPT_CENTER, "." );
-		cmd_number(310, 230, 31, OPT_CENTER, tempvolt->min_cell_voltage_lsb);
-		cmd_text(330, 235, 22, OPT_CENTER, "V");
-	}
-	
-	cmd_text(290, 60, 26, OPT_CENTER, "Max cell" );
-	cmd_number(335, 60, 26, OPT_CENTER,tempvolt->max_cell_id);
-	if( (tempvolt->max_cell_voltage_msb*10 + tempvolt->max_cell_voltage_lsb) > 42){
-		//check_voltage_fl = true;
-		cmd(COLOR_RGB(255,0,0));
-		cmd_number(280, 95, 31, OPT_CENTER, tempvolt->max_cell_voltage_msb);
-		cmd_text(295, 95, 31, OPT_CENTER, "." );
-		cmd_number(310, 95, 31, OPT_CENTER, tempvolt->max_cell_voltage_lsb);
-		cmd_text(330, 100, 22, OPT_CENTER, "V");
+		DrawFloat(280,95,f_nr,tempvolt->max_cell_voltage);
 		cmd(COLOR_RGB(255,255,255));
 	}
 	else {
-		cmd_number(280, 95, 31, OPT_CENTER, tempvolt->max_cell_voltage_msb);
-		cmd_text(295, 95, 31, OPT_CENTER, "." );
-		cmd_number(310, 95, 31, OPT_CENTER, tempvolt->max_cell_voltage_lsb);
-		cmd_text(330, 100, 22, OPT_CENTER, "V");
+		DrawFloat(280,95,f_nr,tempvolt->max_cell_voltage);
+	}
+	
+	cmd_text(290, 130, f_txt, OPT_CENTER, "BMS MIN" );
+	cmd_text(330, 165, f_txt, OPT_CENTER, "V");
+	cmd_number(330, 130, 29, OPT_CENTER, tempvolt->min_cell_id);
+	
+	if( tempvolt->min_cell_voltage < MIN_CELL_VOLTAGE_TRESHOLD )   {
+		cmd(COLOR_RGB(255,0,0));
+		DrawFloat(280,160,f_nr,tempvolt->min_cell_voltage);
+		cmd(COLOR_RGB(255,255,255));
+	}
+	else {
+		DrawFloat(280,160,f_nr,tempvolt->min_cell_voltage);
+	}
+	integer_part = (int) tempvolt->battery_voltage;
+	fractional_part = (int) ( (tempvolt->battery_voltage - integer_part)*10);
+	
+	cmd_text(300, 200, 26, OPT_CENTER, "BMS");
+	cmd_text(360, 235, 22, OPT_CENTER, "V");
+	if ( (tempvolt->battery_voltage > BATTERY_PACK_MAX_VOLTAGE_TRESHOLD) || (tempvolt->battery_voltage < BATTERY_PACK_MIN_VOLTAGE_TRESHOLD) ) {
+		cmd(COLOR_RGB(255,0,0));
+		cmd_number(290,230,f_nr,OPT_CENTER,integer_part);
+		cmd_text(290+40,230,31,OPT_CENTER,".");
+		cmd_number(290+53,230,f_nr,OPT_CENTER,fractional_part);
+		//DrawFloat(290,230,f_nr,tempvolt->battery_voltage);
+		cmd(COLOR_RGB(255,255,255));
+	}
+	else {
+		cmd_number(290,230,f_nr,OPT_CENTER,integer_part);
+		cmd_text(290+40,230,31,OPT_CENTER,".");
+		cmd_number(290+53,230,f_nr,OPT_CENTER,fractional_part);
+		//DrawFloat(290,230,f_nr,tempvolt->battery_voltage);
+	}
+
+	cmd_text(400, 60, f_txt, OPT_CENTER, "GLVBMS MAX" );
+	cmd_text(460, 100, f_txt, OPT_CENTER, "V");
+	cmd_number(460, 60, 29, OPT_CENTER,tempvolt->GLV_max_cell_id);
+	if (tempvolt->GLV_voltage_max_cell > GLV_MAX_CELL_VOLTAGE_TRESHOLD) {
+		cmd(COLOR_RGB(255,0,0));
+		DrawFloat(400,95,f_nr,tempvolt->GLV_voltage_max_cell);
+		cmd(COLOR_RGB(255,255,255));
+	}
+	else {
+		DrawFloat(400,95,f_nr,tempvolt->GLV_voltage_max_cell);
+	}
+	
+	cmd_text(400, 130, f_txt, OPT_CENTER, "GLVBMS MIN" );
+	cmd_text(460, 160, f_txt, OPT_CENTER, "V");
+	cmd_number(460, 130, 29, OPT_CENTER,tempvolt->GLV_min_cell_id);
+	if (tempvolt->GLV_voltage_max_cell < GLV_MIN_CELL_VOLTAGE_TRESHOLD) {
+		cmd(COLOR_RGB(255,0,0));
+		DrawFloat(400,160,f_nr,tempvolt->GLV_voltage_min_cell);
+		cmd(COLOR_RGB(255,255,255));
+	}
+	else {
+		DrawFloat(400,160,f_nr,tempvolt->GLV_voltage_min_cell);
 	}
 	
 	cmd_text(420, 200, 26, OPT_CENTER, "GLV" );
-	if ( (tempvolt->GLV_voltage_msb*10 + tempvolt->GLV_voltage_lsb)  <19) {
-		cmd(COLOR_RGB(255,0,0));
-		cmd_number(390, 230, 31, OPT_CENTER, tempvolt->GLV_voltage_msb);
-		cmd_text(420, 230, 31, OPT_CENTER, "." );
-		cmd_number(435, 230, 31, OPT_CENTER, tempvolt->GLV_voltage_lsb);
-		cmd_text(455, 235, 22, OPT_CENTER, "V");
-		cmd(COLOR_RGB(255,255,255));
-	}
-	else {
-		cmd_number(390, 230, 31, OPT_CENTER, tempvolt->GLV_voltage_msb);
-		cmd_text(420, 230, 31, OPT_CENTER, "." );
-		cmd_number(435, 230, 31, OPT_CENTER, tempvolt->GLV_voltage_lsb);
-		cmd_text(455, 235, 22, OPT_CENTER, "V");
-	}
+	integer_part = (int) tempvolt->GLV_voltage;
+	fractional_part = (int) ( (tempvolt->GLV_voltage - integer_part)*10);
+	cmd_number(410,230,f_nr,OPT_CENTER,integer_part);
+	cmd_text(410+30,230,31,OPT_CENTER,".");
+	cmd_number(410+40,230,f_nr,OPT_CENTER,fractional_part);
+	
+	
 	cmd(DISPLAY()); // display the image
 	cmd(CMD_SWAP);
 	cmd_exec();
 }
-
 
 static void DrawMainMenu() {
 	
@@ -2486,9 +2751,6 @@ static void DrawAdjustmentMenu() {
 	cmd_exec();
 	// Delay in 2014. Why?
 }
-
-
-
 
 static void DrawECUAdjustmentScreen(ParameterValue *parameter) {
 	cmd(CMD_DLSTART);
@@ -2842,40 +3104,14 @@ static void DrawDeviceStatusMenu(DeviceState *deviceState) {
 	cmd_exec();
 }
 
-static void DrawDriveEnableWarning(bool torque_pedal, bool brake_pedal, bool bms_discharge) {
+static void DrawDriveEnableWarning() {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
-	if (torque_pedal && brake_pedal && bms_discharge) {
-		cmd_text(240,100,29,OPT_CENTER,"REMOVE FOOT FROM TORQUE PEDAL BEFORE ENABLING DRIVE" );
-		cmd_text(240,130,29,OPT_CENTER,"PRESS BRAKE PEDAL BEFORE ENABLING DRIVE" );
-		cmd_text(240,160,29,OPT_CENTER,"WAIT FOR BMS DISCHARGE LIMIT BEFORE ENABLING DRIVE" );
-	}
-	else if (torque_pedal && !brake_pedal && !bms_discharge) {
-		cmd_text(240,100,29,OPT_CENTER,"REMOVE FOOT FROM TORQUE PEDAL BEFORE ENABLING DRIVE" );
-		
-	}
-	else if (brake_pedal && !torque_pedal && !bms_discharge) {
-		cmd_text(240,130,29,OPT_CENTER,"PRESS BRAKE PEDAL BEFORE ENABLING DRIVE" );
-		
-	}
-	else if (bms_discharge && !torque_pedal && !brake_pedal) {
-		cmd_text(240,160,29,OPT_CENTER,"WAIT FOR BMS DISCHARGE LIMIT BEFORE ENABLING DRIVE" );
-		
-	}
-	else if (bms_discharge && torque_pedal && !brake_pedal) {
-		cmd_text(240,100,29,OPT_CENTER,"REMOVE FOOT FROM TORQUE PEDAL BEFORE ENABLING DRIVE" );
-		cmd_text(240,160,29,OPT_CENTER,"WAIT FOR BMS DISCHARGE LIMIT BEFORE ENABLING DRIVE" );
 	
-	}
-	else if (bms_discharge && brake_pedal && !torque_pedal) {
-		cmd_text(240,130,29,OPT_CENTER,"PRESS BRAKE PEDAL BEFORE ENABLING DRIVE" );
-		cmd_text(240,160,29,OPT_CENTER,"WAIT FOR BMS DISCHARGE LIMIT BEFORE ENABLING DRIVE" );
-		
-	}
-	else if (brake_pedal && torque_pedal && !bms_discharge) {
-		cmd_text(240,100,29,OPT_CENTER,"REMOVE FOOT FROM TORQUE PEDAL BEFORE ENABLING DRIVE" );
-		cmd_text(240,130,29,OPT_CENTER,"PRESS BRAKE PEDAL BEFORE ENABLING DRIVE" );
-	}
+	cmd_text(240,100,28,OPT_CENTER,"REMOVE FOOT FROM TORQUE PEDAL BEFORE ENABLING DRIVE" );
+	cmd_text(240,130,28,OPT_CENTER,"PRESS BRAKE PEDAL BEFORE ENABLING DRIVE" );
+	cmd_text(240,160,29,OPT_CENTER,"PRESS ACKNOWLEDGE" );
+	
 	cmd(DISPLAY()); // display the image
 	cmd(CMD_SWAP);
 	cmd_exec();
@@ -3135,8 +3371,8 @@ static void DrawFloat(uint16_t x, uint16_t y, uint8_t font_size, float f) {
 	int integer_part = (int) f;
 	int fractional_part = (int) ( (f- integer_part)*10);
 	cmd_number(x,y,font_size,OPT_CENTER,integer_part);
-	cmd_text(x+7,y,font_size,OPT_CENTER,".");
-	cmd_number(x+13,y,font_size,OPT_CENTER,fractional_part);
+	cmd_text(x+14,y,font_size,OPT_CENTER,".");
+	cmd_number(x+28,y,font_size,OPT_CENTER,fractional_part);
 }
 
 static void DrawPresetMenu() {

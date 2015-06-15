@@ -35,6 +35,7 @@ void Task_remoteControl() {
 	uint8_t telemetri_btn = 0;
 	const portTickType xTicksToWait = 5 / portTICK_RATE_MS;
 	while(1) {
+		
 		//try to get message from queue
 		xStatus = xQueueReceive( xRemoteControlQueue, &telemetri_btn, portMAX_DELAY);
 		if ( xStatus == pdPASS) {

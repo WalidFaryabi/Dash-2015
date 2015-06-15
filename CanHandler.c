@@ -54,8 +54,8 @@ void init_CanHandling() {
 	can_init(CAN1,120000000,CAN_BPS_1000K);
 	can_setupFilters(CAN0,accept,id_mask);
 	can_setupFilters(CAN1,accept,id_mask);
-	can_enableRXInterrupt(CAN0);
-	can_enableRXInterrupt(CAN1);
+	//can_enableRXInterrupt(CAN0);
+	//can_enableRXInterrupt(CAN1);
 }
 
 // To read the RTT timer value register: (in ms)
@@ -69,7 +69,7 @@ void CAN0_Handler() {
 		//Some receive mailbox has interrupted. Get message
 		struct CanMessage message;
 		long lHigherPriorityTaskWoken = pdFALSE;
-		while (can_popMessage(CAN0, &message) == GOT_NEW_MESSAGE) {
+		if (can_popMessage(CAN0, &message) == GOT_NEW_MESSAGE) {
 			//can_popMessage(CAN0, &message);
 			SensorPacket.CanMsg = message;
 			SensorPacket.time_stamp = RTT->RTT_VR;	
@@ -105,12 +105,29 @@ void CAN0_Handler() {
 					message.messageID = ID_TRQ_CONF_CH0;
 					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
 				break;
-				
+				case ID_TORQUE_ENCODER_1_DATA:
+					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
+					break;
+				case ID_TORQUE_ENCODER_0_DATA:
+				xQueueSendToBackFromISR(xDashQueue,&message,NULL);
+				break;
 				case ID_IN_ECU_TRACTION_CONTROL:
 				case ID_ECU_PARAMETER_CONFIRMED:
-				case ID_BMS_MAX_MIN_VALUES:
-				case ID_TORQUE_ENCODER_0_DATA:
-				case ID_TORQUE_ENCODER_1_DATA:
+				
+				case ID_BMS_STATE_MESSAGE:
+				case BMS_MAXMIN_VTG_ID:
+				case BMS_TOTVTG_ID:
+				case BMS_MAXMIN_TEMP_ID:
+				
+				case GLVBMS_MAXMIN_VAL_ID:
+				case GLVBMS_TOTVTG_ID:
+				//case CAN_INVERTER_DATA_VOLTAGE_ID:
+				//IMU
+// 				case ID_IMU_ROT_DATA:
+// 				case ID_IMU_G_FORCE_DATA:
+// 				case ID_IMU_VELOCITY_DATA:
+// 				case ID_IMU_POSITION_DATA:
+				
 				case ID_ECU_CAR_STATES:
 				case ID_IN_ECU_LC:
 				case ID_SPEED_FL:
@@ -141,7 +158,7 @@ void CAN1_Handler() {
 		//Some receive mailbox has interrupted. Get message
 		struct CanMessage message;
 		long lHigherPriorityTaskWoken = pdFALSE;
-		while (can_popMessage(CAN1, &message) == GOT_NEW_MESSAGE) {
+		if (can_popMessage(CAN1, &message) == GOT_NEW_MESSAGE) {
 			SensorPacket.CanMsg = message;
 			SensorPacket.time_stamp = RTT->RTT_VR;
 	
@@ -172,6 +189,16 @@ void CAN1_Handler() {
 					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
 					break;
 				
+					case ID_BMS_STATE_MESSAGE:
+					case BMS_MAXMIN_VTG_ID:
+					case BMS_TOTVTG_ID:
+					case BMS_TEMP_ID:
+					case BMS_MAXMIN_TEMP_ID:
+					
+					case GLVBMS_MAXMIN_VAL_ID:
+					case GLVBMS_TOTVTG_ID:
+					//case CAN_INVERTER_DATA_VOLTAGE_ID:
+					
 					//*********ECU RELATED***********//
 					case ID_ECU_CAR_STATES:
 					case ID_IN_ECU_LC:
@@ -180,7 +207,7 @@ void CAN1_Handler() {
 					//*******************************//
 				
 					//*******TORQUE AND STEERING*****//
-					
+					case ID_TORQUE_ENCODER_0_DATA:
 					case ID_TORQUE_ENCODER_1_DATA:
 					//*******************************//
 				

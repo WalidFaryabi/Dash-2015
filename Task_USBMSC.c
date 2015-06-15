@@ -33,7 +33,11 @@ void usbMscTask() {
 	UDP->UDP_TXVC |= 1 <<8;
 	UDP->UDP_TXVC &= ~(1<<9);
 	udc_stop(); // Stop UDP and detach (disable pullup on DDP which fucks with voltage level on detect pin)
+	
 	while(1) {
+		//static bool led_status = true;
+		//pio_setOutput(ECU_LED_PIO,ECU_LED_PIN,led_status);
+		//led_status != led_status;
 		if (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 1){
 			xSemaphoreTake(file_access_mutex,portMAX_DELAY);
 			udc_start();

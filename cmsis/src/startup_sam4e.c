@@ -28,6 +28,7 @@
 /* ---------------------------------------------------------------------------- */
 
 #include "sam4e.h"
+#include "../../sam4e-base/RevolveDrivers/pio.h"
 
 /* Initialize segments */
 extern uint32_t _sfixed;
@@ -272,5 +273,7 @@ void Reset_Handler(void)
 void Dummy_Handler(void)
 {
         while (1) {
+			
+			pio_setOutput(PIOA,16,1);
         }
 }

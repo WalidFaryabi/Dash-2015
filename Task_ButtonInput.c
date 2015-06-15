@@ -76,6 +76,10 @@ void Task_ButtonInput() {
 	// Implement a function that checks if all buttons are in the correct position at start up ?
 	
 	while(1) {
+		
+		//static bool led_status = true;
+		//pio_setOutput(TEMP_LED_PIO,TEMP_LED_PIN,led_status);
+		//led_status != led_status;
 		xSemaphoreTake(xButtonStruct,portMAX_DELAY); // Wait indefinetely for access to Button struct
 		
 		// The order which the buttons are checked determines the priority order of the buttonpress that will be set to true
@@ -205,7 +209,14 @@ void Task_RotaryEncoder() {
 	uint8_t rot_phase_b = 0;
 	uint8_t rot_state = 0;
 	uint8_t prev_rot_state = 0;
+	
+	bool led_status = true;
 	while(1) {
+		
+			//pio_setOutput(AMS_LED_PIO,AMS_LED_PIN,led_status);
+			//led_status != led_status;
+		
+		
 		//Check rotary encoder for new input
 		// ^ XOR . true when inputs differ
 		rot_phase_a = pio_readPin(ROT_A_PIO, ROT_A_PIN);

@@ -12,7 +12,7 @@
 
 typedef enum {MAIN_SCREEN,SYSTEM_MONITOR,TEMP_VOLT,MAIN_MENU,KERS_OPTION,DEVICE_STATUS,
 			  SPEED,TRQ_CALIB,PERSISTENT_MSG,ECU_OPTIONS,LC_HANDLER,ERROR_HANDLER,SNAKE_GAME,
-			  STEER_CALIB,DL_OPTIONS,LOCKED_SEL,PRESET_SEL,PRESET_PROCEDURE,PRESET_CONFIRM} EMenuName;
+			  STEER_CALIB,DL_OPTIONS,LOCKED_SEL,PRESET_SEL,PRESET_PROCEDURE,PRESET_CONFIRM, IMU_INFORMATION} EMenuName;
 			  
 typedef enum {NO_SETTING,TORQUE_SETTING,KERS_SETTING, TRACTION_CONTROL_SETTING, DL_PREALLOCATE,PRESET_1_SETTING,PRESET_2_SETTING,
 			  PRESET_3_SETTING,PRESET_4_SETTING,PRESET_5_SETTING,PRESET_6_SETTING,PRESET_7_SETTING,PRESET_8_SETTING, CONFIRM_YES, CONFIRM_NO} EAdjustmentParameter;
@@ -86,6 +86,7 @@ typedef struct DeviceStatus {
 } DeviceState;
 
 typedef struct ModuleErrorsReceivedOverCan{
+	uint16_t BMS_state_vector;
 	bool ams_error; // Assume there will be sent msgs for NOTOK and OK
 	bool imd_error; // Assume there will be sent msgs for NOTOK and OK
 	
@@ -132,41 +133,63 @@ typedef struct SensorValuesReceivedOverCan {
 } SensorValues;
 
 typedef struct SensorValuesConvertedToPhysicalValues {
-	uint8_t torque_encoder_ch0;
-	uint8_t torque_encoder_ch1;
-	uint8_t brake_pressure_rear;
-	uint8_t brake_pressure_front;
-	uint8_t steering_angle;
+	// Pakker i 32 bit av gangen ps
+	uint16_t torque_encoder_ch0;
+	uint16_t torque_encoder_ch1;
 	
-	int32_t min_battery_temperature;
-	int32_t battery_temperature;
-	int32_t max_battery_temperature;
+	uint16_t brake_pressure_fr;
+	uint16_t brake_pressure_fl;
+	
+	int16_t steering_enc_data;
+	
 	int32_t motor_temperature;
 	int32_t IGBT_temperature;
 	int32_t gearbox_temperature;
-	uint32_t battery_voltage;
+	
+	float Inverter_voltage;
+	
+	uint16_t BMS_max_temp;
+	uint16_t BMS_max_temp_cell_id;
+	uint16_t BMS_min_temp;
+	uint16_t BMS_min_temp_cell_id;
+	
+	uint16_t GLVBMS_max_temp;
+	uint16_t GLVBMS_max_temp_cell_id;
+	uint16_t GLVBMS_min_temp;
+	uint16_t GLVBMS_min_temp_cell_id;
 	
 	
-	uint8_t max_battery_temperature_lsb;
-	uint8_t max_battery_temperature_msb;
+	float battery_voltage;
+	uint16_t min_cell_id;
+	uint16_t max_cell_id;
+	float max_cell_voltage;
+	float min_cell_voltage;
 	
-	uint8_t min_battery_temperature_lsb;
-	uint8_t min_battery_temperature_msb;
+	float GLV_voltage;
+	float GLV_voltage_max_cell;
+	float GLV_voltage_min_cell;
+	uint16_t GLV_max_cell_id;
+	uint16_t GLV_min_cell_id;
 	
-	uint8_t min_cell_id;
-	uint8_t min_cell_voltage_msb;
-	uint8_t min_cell_voltage_lsb;
+	uint16_t GLV_battery_percent;
+	uint16_t HV_battery_percent;
 	
-	uint8_t max_cell_id;
-	uint8_t max_cell_voltage_msb;
-	uint8_t max_cell_voltage_lsb;
+	float IMU_rot_x;
+	float IMU_rot_y;
+	float IMU_rot_z;
 	
-	uint8_t GLV_voltage_msb;
-	uint8_t GLV_voltage_lsb;
+	float IMU_G_x;
+	float IMU_G_y;
+	float IMU_G_z;
 	
-	uint8_t car_speed;
-	uint8_t bms_discharge_limit;
-	uint8_t brake_pedal_actuation;
+	float IMU_pos_x;
+	float IMU_pos_y;
+	
+	float IMU_vel_x;
+	float IMU_vel_y;
+	float IMU_vel_z;
+	
+
 	} SensorPhysicalValues;
 
 

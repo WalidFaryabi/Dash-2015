@@ -31,6 +31,7 @@
 #include "Task_USBMSC.h"
 
 #include "CanHandler.h"
+#include "fpu.h"
 
 #include "sam4e-base/FreeRTOSConfig.h"
 
@@ -52,6 +53,8 @@ carState is set to tractive system on when start
 static void hardwareInit();
 
 int main(void) {
+	
+	fpu_enable();
 	
 	hardwareInit();
 	
@@ -161,6 +164,7 @@ volatile const char * const pcFileName = pcFile;
 	taskENTER_CRITICAL();
 	while( ulSetNonZeroInDebuggerToReturn == 0 )
 	{
+		pio_setOutput(PIOA,16,1);
 		/* If you want to set out of this function in the debugger to see the
 		assert() location then set ulSetNonZeroInDebuggerToReturn to a non-zero
 		value. */
