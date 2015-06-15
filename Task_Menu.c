@@ -1417,8 +1417,8 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 				sensorPhysicalValue->GLV_voltage_max_cell = (ReceiveMsg.data.u16[0]/(float) 10000);
 				sensorPhysicalValue->GLV_voltage_min_cell = (ReceiveMsg.data.u16[1]/(float) 10000);
 				
-				sensorPhysicalValue->GLVBMS_max_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[0],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[0],2) - TEMP_C_3*(ReceiveMsg.data.u16[0]) + TEMP_C_4;
-				sensorPhysicalValue->GLVBMS_min_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[1],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[1],2) - TEMP_C_3*(ReceiveMsg.data.u16[1]) + TEMP_C_4;
+				sensorPhysicalValue->GLVBMS_max_temp = (uint16_t) fabs( -TEMP_C_1*pow(ReceiveMsg.data.u16[2],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[2],2) - TEMP_C_3*(ReceiveMsg.data.u16[2]) + TEMP_C_4 );
+				sensorPhysicalValue->GLVBMS_min_temp = (uint16_t) fabs(-TEMP_C_1*pow(ReceiveMsg.data.u16[3],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[3],2) - TEMP_C_3*(ReceiveMsg.data.u16[3]) + TEMP_C_4 );
 			break;
 			case GLVBMS_TOTVTG_ID:
 				
@@ -1435,8 +1435,10 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 				
 			break;
 			case BMS_MAXMIN_VTG_ID:
-				sensorPhysicalValue->max_cell_id = ReceiveMsg.data.u16[3];
-				sensorPhysicalValue->min_cell_id = ReceiveMsg.data.u16[4];
+// 				sensorPhysicalValue->max_cell_id = ReceiveMsg.data.u16[2];
+// 				sensorPhysicalValue->min_cell_id = ReceiveMsg.data.u16[3];
+				sensorPhysicalValue->max_cell_id = 0;
+				sensorPhysicalValue->min_cell_id = 0;
 				
 				sensorPhysicalValue->max_cell_voltage = (ReceiveMsg.data.u16[0]/(float) 10000);
 				sensorPhysicalValue->min_cell_voltage = (ReceiveMsg.data.u16[1]/(float) 10000);
@@ -1448,11 +1450,11 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 // 				sensorPhysicalValue->min_battery_temperature_msb = ReceiveMsg.data.u8[7];
 			break;
 			case BMS_MAXMIN_TEMP_ID:
-				sensorPhysicalValue->BMS_max_temp_cell_id = ReceiveMsg.data.u16[3];
-				sensorPhysicalValue->BMS_min_temp_cell_id = ReceiveMsg.data.u16[4];
+				sensorPhysicalValue->BMS_max_temp_cell_id = ReceiveMsg.data.u16[2];
+				sensorPhysicalValue->BMS_min_temp_cell_id = ReceiveMsg.data.u16[3];
 				
-				sensorPhysicalValue->BMS_max_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[0],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[0],2) - TEMP_C_3*(ReceiveMsg.data.u16[0]) + TEMP_C_4;
-				sensorPhysicalValue->BMS_min_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[1],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[1],2) - TEMP_C_3*(ReceiveMsg.data.u16[1]) + TEMP_C_4;
+				sensorPhysicalValue->BMS_max_temp = (uint16_t) fabs( -TEMP_C_1*pow(ReceiveMsg.data.u16[0],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[0],2) - TEMP_C_3*(ReceiveMsg.data.u16[0]) + TEMP_C_4);
+				sensorPhysicalValue->BMS_min_temp = (uint16_t) fabs( -TEMP_C_1*pow(ReceiveMsg.data.u16[1],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[1],2) - TEMP_C_3*(ReceiveMsg.data.u16[1]) + TEMP_C_4);
 			
 			break;
 			
