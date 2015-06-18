@@ -25,6 +25,8 @@
 #define ID_DASH_ACKNOWLEDGE			0x660
 #define ID_I_AM_ALIVE				0x661
 
+#define ID_FAN_CONTROL				0x280
+
 //***************************************//
 //************INCOMING*******************//
 //***************************************//
@@ -35,7 +37,8 @@
 #define ID_IN_ECU_TRACTION_CONTROL	0x234
 #define ID_IN_ECU_SELECTED_PRESET	0x235
 
-
+#define ID_BSPD_STATUS				0x668
+#define ID_IMD_STATUS				0x670
 
 #define ID_BMS_TRACTIVE_SYSTEM_ACTIVE 0x62B
 #define ID_BMS_MAX_MIN_VALUES		0x62D
@@ -69,6 +72,7 @@
 
 #define ID_TEMP_COOLING				0x656
 #define ID_TEMP_GEARBOX				0x657
+#define ID_TEMP_MOTOR_2				0x65A
 
 #define ID_IMU_ROT_DATA				0x649	
 #define ID_IMU_G_FORCE_DATA			0x648

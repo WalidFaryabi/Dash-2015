@@ -93,7 +93,7 @@ void deviceStatusTask() {
 	const portTickType xTicksToWait = 1 / portTICK_RATE_MS;
 	uint8_t device_id;
 	for (uint8_t x = 0 ; x < NUM_DEVICES; x++) {
-		deviceTimer[x] = xTimerCreate("Device_Timer",1500/portTICK_RATE_MS, pdTRUE, (void *) x ,vDeviceTimerCallback);
+		deviceTimer[x] = xTimerCreate("Device_Timer",2500/portTICK_RATE_MS, pdTRUE, (void *) x ,vDeviceTimerCallback);
 		if (deviceTimer[x] == NULL) {	
 		//Timer not created .. Heap?
 		}

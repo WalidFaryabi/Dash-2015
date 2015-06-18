@@ -91,10 +91,13 @@ static void DrawHighVoltageSymbol();
 static void DrawSpeedScreen(SensorPhysicalValues *sensorPhysicalValue);
 static void DrawSystemMonitorScreen(ModuleError *error,SensorPhysicalValues *val);
 static void DrawTempAndVoltScreen(SensorPhysicalValues *tempvolt);
-
+static void DrawSensorInformationScreen(SensorPhysicalValues *sensorData);
+static void DrawTSStatusScreen(SensorPhysicalValues *tempvolt, ModuleError *Error);
 static void DrawMainMenu();
+static void DrawMainMenuDown();
 static void DrawAdjustmentMenu();
 static void DrawECUAdjustmentScreen(ParameterValue *parameter);
+static void DrawFANControlScreen(ParameterValue *parameter);
 static void DrawDeviceStatusMenu(DeviceState *deviceState);
 
 static void DrawTorqueCalibrationScreen(ConfirmationMsgs *confMsg);
@@ -134,7 +137,7 @@ const char menu_201[] = "DEVICE STATUS";						// 5
 const char menu_202[] = "STEERING CALIBRATION";					// 6
 const char menu_203[] = "TORQUE CALIBRATION";					// 7
 const char menu_204[] = "ECU SETTINGS";							// 8
-const char menu_205[] = "IMU SETTINGS";							// 9
+const char menu_205[] = "IMU DATA";								// 9
 const char menu_206[] = "SNAKE";								// 10
 const char menu_207[] = "DATALOGGER";							// 11
 const char menu_208[] = "PRESETS";								// 12
@@ -164,21 +167,22 @@ const char menu_703[] = "PREALLOCATE";							// 29
 uint8_t selected = 0; // Menu Index
 const MenuEntry menu[] = {
 	// text  num,   U   D   L   R  Push Pos  cur_menu			current_setting				Rotaryfunction dataloggerFunc
-	{menu_000, 1,	0,	1,  2,  5,	0,  0,	MAIN_SCREEN,		NO_SETTING,					0,0 },						//0
+	{menu_000, 1,	42,	1,  2,  5,	0,  0,	MAIN_SCREEN,		NO_SETTING,					0,0 },						//0
 		
 	{menu_001, 1,	0,	1,	1,	1,	1,  0,  SPEED,				NO_SETTING,					0,0 },						//1	
 	{menu_002, 1,	2,	2,	3,	0,	2,  1,  SYSTEM_MONITOR,		NO_SETTING,					0,0 },						//2
-	{menu_003, 1,	3,	3,	3,	2,	3,  1,	TEMP_VOLT,			NO_SETTING,					0,0 },						//3
+	{menu_003, 1,	3,	3,	41,	2,	3,  1,	TEMP_VOLT,			NO_SETTING,					0,0 },						//3
 			
 	{menu_200, 9,	4,	4,	4,	4,	4,  0,	MAIN_MENU,			NO_SETTING,					0,0},						//4  main menu
 	{menu_201, 9,	5,	6,	0,	9,  14,	1,  MAIN_MENU,			NO_SETTING,					0,0},						//5	 Device Status  
 	{menu_202, 9,	5,	7,	0,	10, 19,	2,  MAIN_MENU,			NO_SETTING,					0,0},						//6  Steer calib
 	{menu_203, 9,	6,	8,	0,	11, 20,	3,  MAIN_MENU,			NO_SETTING,					0,0},						//7	 Torque Pedal Calibration
-	{menu_204, 9,	7,	9,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0,0},						//8  ECU Options
+	{menu_204, 9,	7,	43,	0,	12, 21,	4,  MAIN_MENU,			NO_SETTING,					0,0},						//8  ECU Options
+		
 	{menu_205, 9,	8,	10,	5,	9,  40,	5,  MAIN_MENU,			NO_SETTING,					0,0},						//9  IMU options
 	{menu_206, 9,	9,	11,	6,	10, 18,	6,  MAIN_MENU,			NO_SETTING,					0,0},						//10 Snake
 	{menu_207, 9,	10,	12,	7,	11, 25,	7,  MAIN_MENU,			NO_SETTING,					0,0},						//11 Datalogger
-	{menu_208, 9,	11,	12,	8,	12, 29,	8,  MAIN_MENU,			NO_SETTING,					0,0},						//12 Preset parameters
+	{menu_208, 9,	11,	43,	8,	12, 29,	8,  MAIN_MENU,			NO_SETTING,					0,0},						//12 Preset parameters
 	
 	{menu_400, 1,	10,	10,	6,	10, 10,	1,  KERS_OPTION,		KERS_SETTING,				0,0},						//13  KERS adjustment screen
 		
@@ -217,8 +221,24 @@ const MenuEntry menu[] = {
 		
 	{"PRELOCK",   1,39,	39, 39,	39, 39,	0,	PRESET_PROCEDURE,	NO_SETTING,				0,0},							//39 Preset option
 	{"IMU INFO",  1,40,	40, 9,	40, 40,	0,	IMU_INFORMATION,	NO_SETTING,				0,0},							//40 IMU Information screen
+	{"SENSOR DATA",1,41,41, 41,	 3, 41,	0,	SENSOR_DATA,		NO_SETTING,				0,0},							//41 Sensor Data
+	{"TS STATUS" ,1,42,  0, 42,	42, 42,	0,	TS_STATUS,			NO_SETTING,				0,0},							//42 TS STATUS
 		
-	
+	{"FAN CONTROL", 8,	8,	44,	0,	47, 51,	0,  MAIN_MENU_DOWN,		NO_SETTING,					0,0},						//43 FAN CONTROL
+	{"EMPTY", 8,	43,	45,	0,	48, 44,	1,  MAIN_MENU_DOWN,		NO_SETTING,					0,0},						//44 EMPTY
+	{"EMPTY", 8,	44,	46,	0,	49, 45,	2,  MAIN_MENU_DOWN,		NO_SETTING,					0,0},						//45 EMPTY
+	{"EMPTY", 8,	45,	46,	0,	50, 46,	3,  MAIN_MENU_DOWN,		NO_SETTING,					0,0},						//46 EMPTY
+		
+	{"EMPTY", 8,	12,	48,	43,	47, 47,	4,  MAIN_MENU_DOWN,		NO_SETTING,					0,0},						//47 EMPTY
+	{"EMPTY", 8,	47,	49,	44,	48, 48,	5,  MAIN_MENU_DOWN,		NO_SETTING,					0,0},						//48 EMPTY
+	{"EMPTY", 8,	48,	50,	45,	49, 49,	6,  MAIN_MENU_DOWN,		NO_SETTING,					0,0},						//49 EMPTY
+	{"EMPTY", 8,	49,	50,	46,	50, 50,	7,  MAIN_MENU_DOWN,		NO_SETTING,					0,0},						//50 EMPTY
+		
+	{"RADIATOR FAN",	4,	51,	52,	43,	51, 51,	0,  FAN_OPTIONS,	RADIATOR_FAN_SETTING,		adjustParameters,0},		//51 PUMP ON/OFF
+	{"MONO FAN",		4,	51,	53,	43,	52, 52,	1,  FAN_OPTIONS,	MONO_FAN_SETTING,			adjustParameters,0},		//52 MONO FAN SLIDER
+	{"BATTERY FAN",		4,	52,	54,	43,	53, 53,	2,  FAN_OPTIONS,	BATTERY_FAN_SETTING,		adjustParameters,0},		//53 BATTERY FAN SLIDER
+	{"PUMP",			4,	53,	54,	43,	54, 54,	3,  FAN_OPTIONS,	PUMP_SETTING,				adjustParameters,0}		//54 RADIATOR FAN SLIDER
+		
 	//{menu_703, 4,	27,	28,	11,	28, 28,	3,  DL_OPTIONS,			NO_SETTING,				0,deleteAllFilesCommand}		//28 Delete all files
 	//{menu_704, 4,	23,	24,	8,	24, 24,	3,  DL_OPTIONS,			DL_PREALLOCATE,			0,slider_preallocateAmount}	//29 Amount to preallocate
 };
@@ -320,62 +340,22 @@ typedef enum {STEP_ONE = 1, STEP_TEN=10} EStepSize ;
 struct StepSizeForVariables {
 	EStepSize kers;
 	EStepSize torque;
+	EStepSize radiator_fan;
+	EStepSize mono_fan;
+	EStepSize battery_fan;
 	};
 static struct StepSizeForVariables StepSizeVar = {
 	.kers = STEP_ONE,
-	.torque = STEP_ONE
+	.torque = STEP_TEN,
+	.radiator_fan = STEP_TEN,
+	.battery_fan = STEP_TEN,
+	.mono_fan    = STEP_TEN
 	};
 	
 static struct presetParameterStruct presetParameters;
 
 // Identify which preset that has been chosen
 EAdjustmentParameter presetSetting;
-
-//***********************************************************************************
-//----------------------------------THRESHOLDS AND CRITICAL VALUES-----------------//
-//***********************************************************************************
-#define TORQUE_PEDAL_IN_THRESHOLD	100 // 10 % of total range which is 1000 
-#define BRAKE_PEDAL_IN_THRESHOLD	1600
-
-#define BATTERY_TEMP_CRITICAL_HIGH 90
-#define MAX_CELL_VOLTAGE_TRESHOLD 4.2 
-#define MIN_CELL_VOLTAGE_TRESHOLD 3.2
-#define BATTERY_PACK_MAX_VOLTAGE_TRESHOLD 600
-#define BATTERY_PACK_MIN_VOLTAGE_TRESHOLD 475
-
-#define GLV_MAX_CELL_VOLTAGE_TRESHOLD 4.2
-#define GLV_MIN_CELL_VOLTAGE_TRESHOLD 3.2
-#define GLV_PACK_MAX_VOLTAGE_TRESHOLD 28
-#define GLV_PACK_MIN_VOLTAGE_TRESHOLD 20
-
-// TEMPERATURE CONVERSION COEFFICIENTS
-#define TEMP_C_1 0.000000000007175
-#define TEMP_C_2 0.000000367
-#define TEMP_C_3 0.009898
-#define TEMP_C_4 124.831
-
-// IMU CONVERSION CONSTANTS
-#define IMU_ROT_G_C	0.000125
-#define IMU_VEL_C	0.00076923
-#define IMU_POS_C	10.0
-
-#define BMS_MAX_TEMP_TRESHOLD		45
-#define GLVBMS_MAX_TEMP_THRESHOLD	45
-
-#define GLV_BATTERY_FULL_VOLTAGE	29.4
-#define GLV_BATTERY_EMPTY_VOLTAGE	21.7
-#define GLV_BATTERY_VOLTAGE_RANGE	(GLV_BATTERY_FULL_VOLTAGE-GLV_BATTERY_EMPTY_VOLTAGE)
-
-#define HV_BATTERY_FULL_VOLTAGE		604.8
-#define HV_BATTERY_EMPTY_VOLTAGE	446.4
-#define HV_BATTERY_VOLTAGE_RANGE	(HV_BATTERY_FULL_VOLTAGE - HV_BATTERY_EMPTY_VOLTAGE)
-
-// BMS STATE VECTOR
-#define BMS_OVER_VOLTAGE		1
-#define BMS_UNDER_VOLTAGE		2
-#define BMS_OVER_CURRENT		4
-#define BMS_OVER_TEMPERATURE	8
-#define BMS_VIC_STATUS			16
 
 //***********************************************************************************
 //--------------------------------FILE GLOBALS-------------------------------------//
@@ -482,13 +462,25 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 	//UPDATE SCREENS ON THE DISPLAY AND CALL MENU LOCATION DEPENDENT FUNCTIONS
 	switch (menu[selected].current_menu) {
 		case ECU_OPTIONS:
-		if ((menuUpdate.update_menu == true) ) {
-			menuUpdate.update_menu = false;
-			DrawECUAdjustmentScreen(parameter);
-		}
-		
+			if ((menuUpdate.update_menu == true) ) {
+				menuUpdate.update_menu = false;
+				DrawECUAdjustmentScreen(parameter);
+			}
 		break;
 		
+		case FAN_OPTIONS:
+			if ((menuUpdate.update_menu == true) ) {
+				menuUpdate.update_menu = false;
+				DrawFANControlScreen(parameter);
+			}			
+		break;
+		
+		case TS_STATUS:
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawTSStatusScreen(sensorPhysicalValue,error);
+		}
+		break;
 		case SYSTEM_MONITOR:
 		if ((menuUpdate.update_menu == true) ) {
 			menuUpdate.update_menu = false;
@@ -503,6 +495,12 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 			DrawTempAndVoltScreen(sensorPhysicalValue);
 		}
 		
+		break;
+		case SENSOR_DATA:
+		if ((menuUpdate.update_menu == true) ) {
+			menuUpdate.update_menu = false;
+			DrawSensorInformationScreen(sensorPhysicalValue);
+		}
 		break;
 
 		case DEVICE_STATUS:
@@ -522,9 +520,15 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 		if ((menuUpdate.update_menu == true) ) {
 			menuUpdate.update_menu = false;
 			DrawMainMenu();
-		}
-		
+		}	
 		break;
+		case MAIN_MENU_DOWN:
+			if ((menuUpdate.update_menu == true) ) {
+				menuUpdate.update_menu = false;
+				DrawMainMenuDown();
+			}
+		break;
+		
 		case DL_OPTIONS:
 		if ((menuUpdate.update_menu == true) ) {
 			menuUpdate.update_menu = false;
@@ -1032,6 +1036,37 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 				// the timer runs out or the variable is confirmed.
 				xTimerReset(parameterConfTimer,20/portTICK_RATE_MS); //Start variable confirmation timer
 			break;
+			case FAN_OPTIONS:
+				switch (menu[selected].current_setting) {
+					case RADIATOR_FAN_SETTING:
+						AdjustDutyCycleRadiatorFan.data.u8[2] = parameter->radiator_fan_value;
+						can_freeRTOSSendMessage(CAN0,AdjustDutyCycleRadiatorFan);
+						can_freeRTOSSendMessage(CAN1,AdjustDutyCycleRadiatorFan);
+					break;
+					case MONO_FAN_SETTING:
+						AdjustDutyCycleMonoFan.data.u8[2] = parameter->mono_fan_value;
+						can_freeRTOSSendMessage(CAN0,AdjustDutyCycleMonoFan);
+						can_freeRTOSSendMessage(CAN1,AdjustDutyCycleMonoFan);
+					break;
+					case BATTERY_FAN_SETTING:
+						AdjustDutyCycleBatteryFan.data.u8[2] = parameter->battery_fan_value;
+						can_freeRTOSSendMessage(CAN0,AdjustDutyCycleBatteryFan);
+						can_freeRTOSSendMessage(CAN1,AdjustDutyCycleBatteryFan);
+					break;
+					case PUMP_SETTING:
+						if (parameter->pump_setting_value == 0) {
+							can_freeRTOSSendMessage(CAN0,TurnOffPump);
+							can_freeRTOSSendMessage(CAN1,TurnOffPump);
+						}
+						else {
+							can_freeRTOSSendMessage(CAN0,TurnOnPump);
+							can_freeRTOSSendMessage(CAN1,TurnOnPump);
+						}
+					break;
+					
+				}
+			break;
+				
 			case PERSISTENT_MSG:
 				//If a persistent msg is acknowledged the user is returned to the main screen
 				selected = 0; //Return to main screen
@@ -1069,15 +1104,45 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 				}
 			break;
 			case KERS_SETTING:
-				switch (StepSizeVar.torque){
+				switch (StepSizeVar.kers){
 					case ONE:
-					StepSizeVar.torque = STEP_TEN;
+					StepSizeVar.kers = STEP_TEN;
 					break;
 					case STEP_TEN:
-					StepSizeVar.torque = STEP_ONE;
+					StepSizeVar.kers = STEP_ONE;
 					break;
 				}
 			break;
+			case RADIATOR_FAN_SETTING:
+				switch (StepSizeVar.radiator_fan) {
+					case ONE:
+						StepSizeVar.radiator_fan = STEP_TEN;
+						break;
+					case STEP_TEN:
+						StepSizeVar.radiator_fan = STEP_ONE;
+					break;
+				}
+			break;
+			case MONO_FAN_SETTING:
+				switch (StepSizeVar.mono_fan) {
+					case ONE:
+					StepSizeVar.mono_fan = STEP_TEN;
+					break;
+					case STEP_TEN:
+					StepSizeVar.mono_fan = STEP_ONE;
+					break;
+				}
+			break;
+			case BATTERY_FAN_SETTING:
+				switch (StepSizeVar.battery_fan) {
+					case ONE:
+					StepSizeVar.battery_fan = STEP_TEN;
+					break;
+					case STEP_TEN:
+					StepSizeVar.battery_fan = STEP_ONE;
+					break;
+				}	
+			break;			
 		}
 	}
 	else if (btn->btn_type == LAUNCH_CONTROL) {
@@ -1090,7 +1155,7 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 	}
 	else if (btn->btn_type == ROTARY) {
 		// If currently looking at a variable to adjust, call the specific function to adjust this value
-		if (menu[selected].current_menu == ECU_OPTIONS){ //Add the different option names
+		if (  (menu[selected].current_menu == ECU_OPTIONS) || (menu[selected].current_menu == FAN_OPTIONS) ){ //Add the different option names
 			if (menu[selected].rotaryActionFunc != 0) {
 				if (btn->rotary_cw == true) {
 					menu[selected].rotaryActionFunc(CW,parameter);
@@ -1100,7 +1165,6 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 				}
 			}
 		}
-		
 	}
 	else if (btn->btn_type == START) {
 		if ( (carState != TRACTIVE_SYSTEM_OFF) && (carState != TRACTIVE_SYSTEM_ON) )  {
@@ -1243,20 +1307,28 @@ static void LEDHandler(SensorPhysicalValues *sensorPhysicalValue, ModuleError *e
 		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_LOW);
 	}
 	
-	if (error->ecu_error != 0) {
-		pio_setOutput(ECU_LED_PIO,ECU_LED_PIN,PIN_HIGH);
-	}
-	else {
-		pio_setOutput(ECU_LED_PIO,ECU_LED_PIN,PIN_LOW);
-	}
-	if (checkDeviceStatus(devices) == false) {
-		//Set ouput high
+// 	if (error->ecu_error != 0) {
+// 		pio_setOutput(ECU_LED_PIO,ECU_LED_PIN,PIN_HIGH);
+// 	}
+// 	else {
+// 		pio_setOutput(ECU_LED_PIO,ECU_LED_PIN,PIN_LOW);
+// 	}
+// 	
+	if (  !(error->bspd_status & BSPD_SHUTDOWN_NOT_ACTIVE)   || (error->ECU_implausibility == ECU_TPS_BPS_IMPLAUSIBILITY) ) {
 		pio_setOutput(DEVICE_LED_PIO,DEVICE_LED_PIN,PIN_HIGH);
 	}
 	else {
-		//set low
 		pio_setOutput(DEVICE_LED_PIO,DEVICE_LED_PIN,PIN_LOW);
 	}
+	
+// 	if (checkDeviceStatus(devices) == false) {
+// 		//Set ouput high
+// 		pio_setOutput(DEVICE_LED_PIO,DEVICE_LED_PIN,PIN_HIGH);
+// 	}
+// 	else {
+// 		//set low
+// 		pio_setOutput(DEVICE_LED_PIO,DEVICE_LED_PIN,PIN_LOW);
+// 	}
 	
 	switch (carState) {
 		case TRACTIVE_SYSTEM_OFF: 
@@ -1299,8 +1371,37 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 	if (xQueueReceive(xDashQueue,&ReceiveMsg,5) == pdTRUE) {
 		//can_sendMessage(CAN0,txmsg);
 		//Received a Can message over the queue
-		
 		switch (ReceiveMsg.messageID) {
+			
+			case CAN_INVERTER_DATA_STATUS_ID:
+				// bits.. 
+				error->inverter_data_status = ReceiveMsg.data.u32[0];
+// 				if (ReceiveMsg.data.u32[0] & INVERTER_ENCODER_NOT_FOUND ) {
+// 					
+// 				}
+// 				else {
+// 					// Encoder pos found
+// 				}
+// 				if (ReceiveMsg.data.u32[0] & INVERTER_ENABLED) {
+// 					
+// 				}
+// 				else {
+// 					// inverter not enabled
+// 				}
+			break;
+			case CAN_INVERTER_DATA_VOLTAGE_ID:
+				sensorPhysicalValue->Inverter_voltage = ReceiveMsg.data.f[0];
+			break;
+			case ECU_CURRENT_IMPLAUSIBILITY_ID:
+				error->ECU_implausibility = ReceiveMsg.data.u8[0];
+			break;
+			
+			case ID_BSPD_STATUS:
+				error->bspd_status = ReceiveMsg.data.u8[0];
+			break;
+			case ID_IMD_STATUS:
+				error->IMD_status = ReceiveMsg.data.u8[0];
+			break;
 			case ID_TRQ_CONF_CH0:
 				switch (ReceiveMsg.data.u8[0]) {
 					case 0x0F:
@@ -1467,9 +1568,6 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 // 				sensorPhysicalValue->GLVBMS_max_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[0],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[0],2) - TEMP_C_3*(ReceiveMsg.data.u16[0]) + TEMP_C_4;
 // 				sensorPhysicalValue->GLVBMS_min_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[1],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[1],2) - TEMP_C_3*(ReceiveMsg.data.u16[1]) + TEMP_C_4;
 // 			break;
-			case CAN_INVERTER_DATA_VOLTAGE_ID:
-				sensorPhysicalValue->Inverter_voltage = ReceiveMsg.data.f[0];
-			break;
 			case ID_STEERING_ENCODER_DATA:
 				sensorPhysicalValue->steering_enc_data = ReceiveMsg.data.u8[0] << 8 | ReceiveMsg.data.u8[1];
 			break;
@@ -1489,20 +1587,17 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 			case ID_SPEED_RL:
 			break;
 			case ID_TEMP_COOLING:
-				sensorValue->temp_sensor_cooling = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
-				break;
+				sensorPhysicalValue->cooling_temperature = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 10;
+			break;
 			case ID_TEMP_GEARBOX:
-				sensorValue->temp_sensor_gearbox = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
-				break;
+				sensorPhysicalValue->gearbox_temperature = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 10;
+			break;
 			case ID_BRAKE_PRESSURE_FL:
 				sensorPhysicalValue->brake_pressure_fl = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
-				//sensorValue->brake_pressure_fl = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
 				break;
-				//(brk_pres_front-3960)/120)
 			case ID_BRAKE_PRESSURE_FR:
 				sensorPhysicalValue->brake_pressure_fr = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]); // Linear
-				//sensorValue->brake_pressure_fr = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
-				break;
+			break;
 			case ID_DAMPER_FL:
 			case ID_DAMPER_FR:
 			case ID_DAMPER_RL:
@@ -1928,9 +2023,7 @@ static void initSensorRealValueStruct(SensorPhysicalValues *sensorReal) {
 	sensorReal->brake_pressure_fr = 0;
 	
 	sensorReal->steering_enc_data = 0;
-
-	sensorReal->motor_temperature = 0;
-	sensorReal->IGBT_temperature = 0;
+	sensorReal->cooling_temperature = 0;
 	sensorReal->gearbox_temperature = 0;
 	
 	sensorReal->BMS_max_temp = 0;
@@ -1999,6 +2092,10 @@ static void initConfirmationMessagesStruct(ConfirmationMsgs *confMsg) {
 	}
 static void initErrorMessagesStruct(ModuleError *error) {
 	error->BMS_state_vector = 0;
+	error->inverter_data_status = 0;
+	error->bspd_status = 0xFF;
+	error->ECU_implausibility = 0;
+	error->IMD_status = 0;
 	error->ams_error = false;
 	error->imd_error = false;
 	error->ecu_error   = 0;
@@ -2018,6 +2115,13 @@ static void initParameterStruct(ParameterValue *parameter) {
 	
 	parameter->confirmed_traction_control_value = 1;
 	parameter->traction_control_value = 1;
+	
+	parameter->min_fan_duty_cycle	= 0;
+	parameter->max_fan_duty_cycle	= 100;
+	parameter->radiator_fan_value	= 0;
+	parameter->mono_fan_value		= 0;
+	parameter->battery_fan_value	= 0;
+	parameter->pump_setting_value   = 0;		
 }
 static void clearAllButtons() {
 	btn.unhandledButtonAction = false;
@@ -2492,7 +2596,7 @@ static void DrawTempAndVoltScreen(SensorPhysicalValues *tempvolt) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
 	cmd(COLOR_RGB(255,255,255));
-	cmd_text(240,15,30,OPT_CENTER,"TEMPERATURES AND VOLTAGES");
+	cmd_text(240,15,30,OPT_CENTER,"BATTERY INFO");
 	
 	cmd(COLOR_RGB(255,255,255));
 	cmd_text(60, 60, 26, OPT_CENTER, "BMS MAX");
@@ -2634,6 +2738,132 @@ static void DrawTempAndVoltScreen(SensorPhysicalValues *tempvolt) {
 	cmd_exec();
 }
 
+static void DrawTSStatusScreen(SensorPhysicalValues *tempvolt, ModuleError *Error) {
+	cmd(CMD_DLSTART);
+	cmd(CLEAR(1, 1, 1)); // clear screen
+	cmd(COLOR_RGB(255,255,255));
+	uint8_t txt_size = 26;
+	
+	//**************** ECU **********************************//
+	cmd_text(85, 25, 28, OPT_CENTER, "ECU IMPL");
+	if (Error->ECU_implausibility == ECU_NO_IMPLAUSIBILITY) {
+		cmd_text(85, 50, txt_size, OPT_CENTER, "NONE");
+	}
+	else if (Error->ECU_implausibility == ECU_TPS_MISMATCH) {
+		cmd_text(85, 50, txt_size, OPT_CENTER, "TPS MISMATCH");
+	}
+	else if (Error->ECU_implausibility == ECU_TPS_BPS_IMPLAUSIBILITY) {
+		cmd_text(85, 50, txt_size, OPT_CENTER, "ECU BSPD");
+	}
+	else if (Error->ECU_implausibility == ECU_SENSOR_ERROR) {
+		cmd_text(85, 50, txt_size, OPT_CENTER, "SENSOR ERROR");
+	}
+	else if (Error->ECU_implausibility == ECU_OUTDATED_DATA) {
+		cmd_text(85, 50, txt_size, OPT_CENTER, "OUTDATED DATA");
+	}
+	
+	//************************ IMD *****************************//
+	cmd_text(85, 80, 28, OPT_CENTER, "IMD STATUS");
+	if (Error->IMD_status == IMD_OFF) {
+		cmd_text(85, 105, txt_size, OPT_CENTER, "OFF");
+	}
+	else if (Error->IMD_status == IMD_NORMAL) {
+		cmd_text(85, 105, txt_size, OPT_CENTER, "NORMAL");
+	}
+	else if (Error->IMD_status == IMD_UNDER_VOLTAGE) {
+		cmd_text(85, 105, txt_size, OPT_CENTER, "UNDER VOLTAGE");
+	}
+	else if (Error->IMD_status == IMD_SPEED_START) {
+		cmd_text(85, 105, txt_size, OPT_CENTER, "SPEED START");
+	}
+	else if (Error->IMD_status == IMD_ERROR) {
+		cmd_text(85, 105, txt_size, OPT_CENTER, "ERROR");
+	}
+	else if (Error->IMD_status == IMD_GROUND_ERROR) {
+		cmd_text(85, 105, txt_size, OPT_CENTER, "GROUND ERROR");
+	}
+	
+	
+	//************************ INVERTER ************************//
+	cmd_text(350, 25, 28, OPT_CENTER, "INV ENC POS");
+	if ( Error->inverter_data_status & INVERTER_ENCODER_NOT_FOUND) {
+		cmd_text(350, 50, txt_size, OPT_CENTER, "NOT FOUND");
+	}
+	else {
+		cmd_text(350, 50, txt_size, OPT_CENTER, "POSITION FOUND");
+	}
+	
+	cmd_text(350, 80, 28, OPT_CENTER, "INV STATUS");
+	if ( Error->inverter_data_status & INVERTER_ENABLED) {
+		cmd_text(350, 105, txt_size, OPT_CENTER, "ENABLED");
+	}
+	else {
+		cmd_text(350, 105, txt_size, OPT_CENTER, "DISABLED");
+	}
+	
+
+	
+	cmd(DISPLAY()); // display the image
+	cmd(CMD_SWAP);
+	cmd_exec();
+	
+}
+
+static void DrawSensorInformationScreen(SensorPhysicalValues *sensorData) {
+	uint8_t f_txt = 26;
+	uint8_t f_nr = 25;
+	
+	cmd(CMD_DLSTART);
+	cmd(CLEAR(1, 1, 1)); // clear screen
+	cmd(COLOR_RGB(255,255,255));
+	cmd_text(240,15,30,OPT_CENTER,"SENSOR DATA");
+	//***************************************************************//
+	//***********************COLUMN 1********************************//
+	//***************************************************************//
+	cmd_text(60, 60, 26, OPT_CENTER, "GEARBOX TMP");
+	DrawIMUFloat(50,90,f_nr,sensorData->gearbox_temperature);
+	
+	cmd_text(60, 130, 26, OPT_CENTER, "COOL TEMP");
+	DrawIMUFloat(50,160,f_nr,sensorData->cooling_temperature);
+	
+// 	cmd_text(60, 200, f_txt, OPT_CENTER, "EMPTY");
+// 	DrawIMUFloat(50,230,f_nr,sensorData->IMU_rot_z);
+	//***************************************************************//
+	//***********************COLUMN 2********************************//
+	//***************************************************************//
+// 	cmd_text(180, 60, 26, OPT_CENTER, "G FORCE X");
+// 	DrawIMUFloat(170,90,f_nr,sensorData->IMU_G_x);
+// 
+// 	cmd_text(180, 130, 26, OPT_CENTER, "G FORCE Y" );
+// 	DrawIMUFloat(170,160,f_nr,sensorData->IMU_G_y);
+// 	
+// 	cmd_text(180, 200, 26, OPT_CENTER, "G FORCE Z");
+// 	DrawIMUFloat(170,230,f_nr,sensorData->IMU_G_z);
+	//***************************************************************//
+	//***********************COLUMN 3********************************//
+	//***************************************************************//
+// 	cmd_text(290, 60, f_txt, OPT_CENTER, "POS X" );
+// 	DrawIMUFloat(280,90,f_nr,sensorData->IMU_pos_x);
+// 	
+// 	cmd_text(290, 130, f_txt, OPT_CENTER, "POS Y" );
+// 	DrawIMUFloat(280,160,f_nr,sensorData->IMU_pos_y);
+	//***************************************************************//
+	//***********************COLUMN 4********************************//
+	//***************************************************************//
+// 	cmd_text(400, 60, f_txt, OPT_CENTER, "VEL X" );
+// 	DrawIMUFloat(400,90,f_nr,sensorData->IMU_vel_x);
+// 	
+// 	cmd_text(400, 130, f_txt, OPT_CENTER, "VEL Y" );
+// 	DrawIMUFloat(400,160,f_nr,sensorData->IMU_vel_y);
+// 	
+// 	cmd_text(420, 200, 26, OPT_CENTER, "VEL Z" );
+// 	DrawIMUFloat(410,230,f_nr,sensorData->IMU_vel_z);
+	
+	cmd(DISPLAY()); // display the image
+	cmd(CMD_SWAP);
+	cmd_exec();
+}
+
 static void DrawMainMenu() {
 	
 	uint8_t pos = selected - menu[selected].position; // First position in current menu
@@ -2719,7 +2949,91 @@ static void DrawMainMenu() {
 	cmd(CMD_SWAP);
 	cmd_exec();
 }
-
+static void DrawMainMenuDown() {
+	
+	uint8_t pos = selected - menu[selected].position; // First position in current menu
+	uint8_t end_position  = pos + menu[pos].num_menupoints - 1;  // Last position in current menu
+	uint16_t y_position = 20;
+	uint16_t x_position = 10;
+	
+	uint16_t x_position_text = 120;
+	uint16_t y_position_text = 50;
+	
+	
+	uint16_t button_width = 230;
+	uint16_t button_heigth = 60;
+	uint8_t vert_spacing = 62;
+	
+	cmd(CMD_DLSTART);
+	cmd(CLEAR(1, 1, 1)); // clear screen
+	//cmd_text(236,20 , 29, OPT_CENTER, menu[pos].text);
+	//pos = pos +1;
+	cmd(COLOR_RGB(255,255,255));
+	for (pos; pos <= (end_position-4); pos ++) {
+		if ( pos == selected) {
+			
+			cmd(BEGIN(RECTS));
+			cmd(COLOR_RGB(255,255,20));
+			//cmd(COLOR_RGB(70,50,110));
+			cmd(LINE_WIDTH(16*1));
+			//cmd_fgcolor(0xffff33);
+			//cmd(COLOR_RGB(0,0,0));
+			cmd(VERTEX2F(x_position*16,y_position*16));
+			cmd(VERTEX2F((x_position+button_width)*16, (y_position+button_heigth)*16));
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+			//cmd(COLOR_RGB(255,255,255));
+			cmd(COLOR_RGB(0,0,0));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			
+			cmd_coldstart();
+		}
+		else {
+			//cmd_fgcolor(0x302020);
+			//cmd_fgcolor(0x0);
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+		}
+		y_position += vert_spacing;
+		y_position_text += vert_spacing;
+	}
+	
+	y_position = 20;
+	x_position = 250;
+	
+	x_position_text = 360;
+	y_position_text = 50;
+	for (pos ; pos <= end_position; pos ++) {
+		if ( pos == selected) {
+			cmd(BEGIN(RECTS));
+			cmd(COLOR_RGB(255,255,20)); // Make the main battery rectangle grey
+			cmd(LINE_WIDTH(16*5));
+			//cmd_fgcolor(0xffff33);
+			//cmd(COLOR_RGB(0,0,0));
+			cmd(VERTEX2F(x_position*16,y_position*16));
+			cmd(VERTEX2F((x_position+button_width)*16, (y_position+button_heigth)*16));
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+			//cmd(COLOR_RGB(255,255,255));
+			cmd(COLOR_RGB(0,0,0));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			
+			cmd_coldstart();
+		}
+		else {
+			//cmd_fgcolor(0x302020);
+			//cmd_fgcolor(0x0);
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_position_text,y_position_text,28,OPT_CENTER,menu[pos].text);
+			//cmd_button(x_position, y_position, button_width, button_heigth, 28, 0, menu[pos].text);
+		}
+		y_position += vert_spacing;
+		y_position_text += vert_spacing;
+	}
+	
+	cmd(DISPLAY()); // display the image
+	cmd(CMD_SWAP);
+	cmd_exec();
+}
 static void DrawAdjustmentMenu() {
 	uint8_t y_position = 60;
 	uint8_t pos = selected - menu[selected].position; // First position in current menu
@@ -2904,6 +3218,184 @@ static void DrawECUAdjustmentScreen(ParameterValue *parameter) {
 	cmd(CMD_SWAP);
 	cmd_exec();
 }
+static void DrawFANControlScreen(ParameterValue *parameter) {
+	cmd(CMD_DLSTART);
+	cmd(CLEAR(1, 1, 1)); // clear screen
+
+	uint8_t menu_pos = 51;
+	uint8_t variable_pos = 51;
+	uint8_t end_menu_pos = menu_pos + menu[51].num_menupoints - 1;
+	uint8_t end_variable_pos = variable_pos + menu[51].num_menupoints -1;
+	
+	uint32_t y_menu_position = 56;
+	uint32_t x_menu_position = 25;
+	uint32_t vertical_menu_spacing = 55;
+	uint8_t font_size = 27;
+
+	cmd_text(240,20,29,OPT_CENTER,"FAN CONTROL");
+	for (menu_pos; menu_pos <= end_menu_pos ; menu_pos ++) {
+		if (selected == menu_pos) {
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_menu_position,y_menu_position,font_size,OPT_FLAT,menu[menu_pos].text);
+		}
+		else {
+			cmd(COLOR_RGB(255,255,255));
+			cmd_text(x_menu_position,y_menu_position,font_size,OPT_FLAT,menu[menu_pos].text);
+		}
+		y_menu_position += vertical_menu_spacing;
+	}
+	uint32_t x_slider_position = 200;
+	uint32_t y_slider_position = 60;
+	uint8_t vertical_slider_spacing = 55;
+	uint32_t slider_width = 190;
+	uint8_t slider_heigth = 10;
+	
+	uint8_t x_num_adj = 34;
+	uint8_t x_max_num_adj = 215;
+	uint8_t y_num_adj = 10;
+	uint8_t num_font_size = 27;
+	
+	uint8_t shape_spacing = 55;
+	
+	//Knob : fgcolor
+	//Left of knob : COLOR_RGB
+	//Right of knob : bgcolor
+	uint32_t color_right = 0x605F69;
+	uint32_t color_knob  = 0x0000FF;
+	//static void DrawParallellogram(uint16_t y_top_left);
+	
+	cmd(LINE_WIDTH(16*2));
+	for(variable_pos; variable_pos <= end_variable_pos; variable_pos ++) {
+		switch (menu[variable_pos].current_setting) {
+			case RADIATOR_FAN_SETTING:
+				if (selected == variable_pos) {
+					cmd(COLOR_RGB(60,80,110));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,80*16));
+					cmd(VERTEX2F(5*16,50*16));
+					cmd(VERTEX2F(450*16,50*16));
+					cmd(VERTEX2F(470*16,80*16));
+					cmd(VERTEX2F(25*16,80*16));
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right); //
+					cmd(COLOR_RGB(255,255,0)); //
+				}
+				else {
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right);
+					cmd(COLOR_RGB(255,255,255));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,80*16));
+					cmd(VERTEX2F(5*16,50*16));
+					cmd(VERTEX2F(450*16,50*16));
+					cmd(VERTEX2F(470*16,80*16));
+					cmd(VERTEX2F(25*16,80*16));
+				}
+				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,parameter->radiator_fan_value,parameter->max_fan_duty_cycle);
+				cmd(COLOR_RGB(255,255,255));
+				//cmd(COLOR_RGB(255,0,0));
+				cmd_number(425,y_slider_position +4,num_font_size,OPT_CENTER,parameter->radiator_fan_value);
+			break;
+			case MONO_FAN_SETTING:
+				if (selected == variable_pos) {
+					cmd(COLOR_RGB(60,80,110));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,(80+shape_spacing)*16));
+					cmd(VERTEX2F(5*16,(50+shape_spacing)*16));
+					cmd(VERTEX2F(450*16,(50+shape_spacing)*16));
+					cmd(VERTEX2F(470*16,(80+shape_spacing)*16));
+					cmd(VERTEX2F(25*16,(80+shape_spacing)*16));
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right); //
+					cmd(COLOR_RGB(255,255,0)); //
+				}
+				else {
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right);
+					cmd(COLOR_RGB(255,255,255));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,(80+shape_spacing)*16));
+					cmd(VERTEX2F(5*16,(50+shape_spacing)*16));
+					cmd(VERTEX2F(450*16,(50+shape_spacing)*16));
+					cmd(VERTEX2F(470*16,(80+shape_spacing)*16));
+					cmd(VERTEX2F(25*16,(80+shape_spacing)*16));
+				}
+				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,parameter->mono_fan_value,parameter->max_fan_duty_cycle);
+				cmd(COLOR_RGB(255,255,255));
+				//cmd(COLOR_RGB(255,0,0));
+				cmd_number(425,y_slider_position +4,num_font_size,OPT_CENTER,parameter->mono_fan_value);
+			break;
+			case BATTERY_FAN_SETTING:
+				if (selected == variable_pos) {
+					cmd(COLOR_RGB(60,80,110));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,(80+shape_spacing*2)*16));
+					cmd(VERTEX2F(5*16,(50+shape_spacing*2)*16));
+					cmd(VERTEX2F(450*16,(50+shape_spacing*2)*16));
+					cmd(VERTEX2F(470*16,(80+shape_spacing*2)*16));
+					cmd(VERTEX2F(25*16,(80+shape_spacing*2)*16));
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right); //
+					cmd(COLOR_RGB(255,255,0)); //
+				}
+				else {
+					cmd_fgcolor(0x000000); // Try black knob
+					cmd_bgcolor(color_right);
+					cmd(COLOR_RGB(255,255,255));
+					cmd(BEGIN(LINE_STRIP));
+					cmd(VERTEX2F(25*16,(80+shape_spacing*2)*16));
+					cmd(VERTEX2F(5*16,(50+shape_spacing*2)*16));
+					cmd(VERTEX2F(450*16,(50+shape_spacing*2)*16));
+					cmd(VERTEX2F(470*16,(80+shape_spacing*2)*16));
+					cmd(VERTEX2F(25*16,(80+shape_spacing*2)*16));
+				}
+			
+				cmd_slider(x_slider_position,y_slider_position,slider_width,slider_heigth,OPT_FLAT,parameter->battery_fan_value,parameter->max_fan_duty_cycle);
+				cmd(COLOR_RGB(255,255,255));
+				//cmd(COLOR_RGB(255,0,0));
+				cmd_number(425,y_slider_position +4,num_font_size,OPT_CENTER,parameter->battery_fan_value);
+		
+			case PUMP_SETTING:
+			// Create square and a toggle thin
+			if (selected == variable_pos) {
+				cmd(COLOR_RGB(60,80,110));
+				cmd(BEGIN(LINE_STRIP));
+				cmd(VERTEX2F(25*16,(80+shape_spacing*3)*16));
+				cmd(VERTEX2F(5*16,(50+shape_spacing*3)*16));
+				cmd(VERTEX2F(450*16,(50+shape_spacing*3)*16));
+				cmd(VERTEX2F(470*16,(80+shape_spacing*3)*16));
+				cmd(VERTEX2F(25*16,(80+shape_spacing*3)*16));
+				cmd_fgcolor(0x000000); // Try black knob
+				cmd_bgcolor(color_right); //
+				cmd(COLOR_RGB(255,255,0)); //
+			}
+			else {
+				cmd_fgcolor(0x000000); // Try black knob
+				cmd_bgcolor(color_right);
+				cmd(COLOR_RGB(255,255,255));
+				cmd(BEGIN(LINE_STRIP));
+				cmd(VERTEX2F(25*16,(80+shape_spacing*3)*16));
+				cmd(VERTEX2F(5*16,(50+shape_spacing*3)*16));
+				cmd(VERTEX2F(450*16,(50+shape_spacing*3)*16));
+				cmd(VERTEX2F(470*16,(80+shape_spacing*3)*16));
+				cmd(VERTEX2F(25*16,(80+shape_spacing*3)*16));
+			}
+			
+			if ( parameter->pump_setting_value == 0) {
+				cmd_text(320,230,24,OPT_CENTER,"OFF");
+			}
+			else {
+				cmd_text(320,230,24,OPT_CENTER,"ON");
+			}
+			break;
+		}
+		y_slider_position += vertical_slider_spacing;
+	}
+	cmd(DISPLAY()); // display the image
+	cmd(CMD_SWAP);
+	cmd_exec();
+}
+
 static void DrawDeviceStatusMenu(DeviceState *deviceState) {
 	uint8_t bar_len = 100;
 	// Title
@@ -3577,6 +4069,38 @@ static void adjustParameters(ERotary_direction dir, ParameterValue *parameter) {
 			}
 			else if ( (dir == CCW) && (parameter->traction_control_value == 1) ) {
 				parameter->traction_control_value = 0;
+			}
+		break;
+		case RADIATOR_FAN_SETTING:
+			if ( (dir == CW) && ( (parameter->radiator_fan_value + StepSizeVar.radiator_fan) <= parameter->max_fan_duty_cycle )  ) {
+				parameter->radiator_fan_value += StepSizeVar.radiator_fan;
+			}
+			else if ( (dir == CCW) && ( parameter->radiator_fan_value   >= (parameter->min_fan_duty_cycle + StepSizeVar.radiator_fan) ) ) {
+				parameter->radiator_fan_value -= StepSizeVar.radiator_fan;
+			}
+		break;
+		case BATTERY_FAN_SETTING:
+			if ( (dir == CW) && ( (parameter->battery_fan_value + StepSizeVar.battery_fan) <= parameter->max_fan_duty_cycle )  ) {
+				parameter->battery_fan_value += StepSizeVar.battery_fan;
+			}
+			else if ( (dir == CCW) && ( parameter->battery_fan_value   >= (parameter->min_fan_duty_cycle + StepSizeVar.battery_fan) ) ) {
+				parameter->battery_fan_value -= StepSizeVar.battery_fan;
+			}
+		break;
+		case MONO_FAN_SETTING:
+			if ( (dir == CW) && ( (parameter->mono_fan_value + StepSizeVar.mono_fan) <= parameter->max_fan_duty_cycle )  ) {
+				parameter->mono_fan_value += StepSizeVar.mono_fan;
+			}
+			else if ( (dir == CCW) && ( parameter->mono_fan_value   >= (parameter->min_fan_duty_cycle + StepSizeVar.mono_fan) ) ) {
+				parameter->mono_fan_value -= StepSizeVar.mono_fan;
+			}
+		break;
+		case PUMP_SETTING:
+			if ( (dir == CW) && ( parameter->pump_setting_value == 0  ) ) {
+				parameter->pump_setting_value = 1;
+			}
+			else if ( (dir == CCW) && (parameter->pump_setting_value == 1) ) {
+				parameter->pump_setting_value = 0;
 			}
 		break;
 	}

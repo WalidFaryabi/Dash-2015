@@ -65,6 +65,44 @@ struct CanMessage RequestLCArmed = {
 	.data.u8[0] = 2
 };
 
+struct CanMessage TurnOffPump = {
+	.messageID = ID_FAN_CONTROL,
+	.dataLength = 3,
+	.data.u8[0] = 4,
+	.data.u8[1] = 0,
+	.data.u8[2] = 0
+	};
+struct CanMessage TurnOnPump = {
+	.messageID = ID_FAN_CONTROL,
+	.dataLength = 3,
+	.data.u8[0] = 4,
+	.data.u8[1] = 0,
+	.data.u8[2] = 1
+};	
+struct CanMessage AdjustDutyCycleRadiatorFan = {
+	.messageID = ID_FAN_CONTROL,
+	.dataLength = 3,
+	.data.u8[0] = 1,
+	.data.u8[1] = 0
+};
+struct CanMessage AdjustDutyCycleBatteryFan = {
+	.messageID = ID_FAN_CONTROL,
+	.dataLength = 3,
+	.data.u8[0] = 2,
+	.data.u8[1] = 0
+};
+struct CanMessage AdjustDutyCycleMonoFan = {
+	.messageID = ID_FAN_CONTROL,
+	.dataLength = 3,
+	.data.u8[0] = 3,
+	.data.u8[1] = 0
+};
+// 0-100
+// radiator 1
+// batter 2
+// mono 3 
+// sette byte [2] til 0-100 
+
 
 struct CanMessage EcuParametersFromFile = {
 	// Byte 1 describes what parameter is being set in the ECU , 0x01 for Torque, 0x02 for Kers amount, 0x03 for KERS ON/OFF, 0x04 ..

@@ -41,11 +41,6 @@ Changed:
 PMC and Pio modified
 Feertosconfig. Changed max timer queue
 INCLUDE_xSemaphoreGetMutexHolder 1 This is not default in freertos config h
-
-*Shut_down_circuit_closed is initialized to true
-carState is set to tractive system on when start
-
-
 */
 
 #define WATCHDOG_DOWN_COUNTER 769 // 3 seconds

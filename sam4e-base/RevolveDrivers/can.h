@@ -43,6 +43,8 @@ void can_init(Can *can, uint32_t peripheral_clock_hz, uint32_t baudrate_kbps);
 void can_setupFilters(Can *can, uint32_t acceptence_masks[7], uint32_t id_masks[7]);
 enum CanTXstatus can_sendMessage(Can *can, struct CanMessage message);	//NOT THREADSAFE
 enum CANReceiveStatus can_popMessage(Can *can, struct CanMessage *message); //NOT THREADSAFE
+void can_enableRXInterrupt(Can *can);
+void can_disableRXInterrupt(Can *can);
 
 
 

@@ -10,12 +10,14 @@
 
 #include <stdbool.h>
 
-typedef enum {MAIN_SCREEN,SYSTEM_MONITOR,TEMP_VOLT,MAIN_MENU,KERS_OPTION,DEVICE_STATUS,
+typedef enum {MAIN_SCREEN,SYSTEM_MONITOR,TEMP_VOLT,MAIN_MENU,MAIN_MENU_DOWN, KERS_OPTION,DEVICE_STATUS,
 			  SPEED,TRQ_CALIB,PERSISTENT_MSG,ECU_OPTIONS,LC_HANDLER,ERROR_HANDLER,SNAKE_GAME,
-			  STEER_CALIB,DL_OPTIONS,LOCKED_SEL,PRESET_SEL,PRESET_PROCEDURE,PRESET_CONFIRM, IMU_INFORMATION} EMenuName;
+			  STEER_CALIB,DL_OPTIONS,LOCKED_SEL,PRESET_SEL,PRESET_PROCEDURE,PRESET_CONFIRM, 
+			  IMU_INFORMATION,SENSOR_DATA, TS_STATUS,FAN_OPTIONS} EMenuName;
 			  
 typedef enum {NO_SETTING,TORQUE_SETTING,KERS_SETTING, TRACTION_CONTROL_SETTING, DL_PREALLOCATE,PRESET_1_SETTING,PRESET_2_SETTING,
-			  PRESET_3_SETTING,PRESET_4_SETTING,PRESET_5_SETTING,PRESET_6_SETTING,PRESET_7_SETTING,PRESET_8_SETTING, CONFIRM_YES, CONFIRM_NO} EAdjustmentParameter;
+			  PRESET_3_SETTING,PRESET_4_SETTING,PRESET_5_SETTING,PRESET_6_SETTING,PRESET_7_SETTING,PRESET_8_SETTING, CONFIRM_YES, CONFIRM_NO,
+			  PUMP_SETTING, RADIATOR_FAN_SETTING, MONO_FAN_SETTING, BATTERY_FAN_SETTING } EAdjustmentParameter;
 			  
 typedef enum {NAVIGATION,PUSH_ACK,ROTARY,ROT_ACK,START,LAUNCH_CONTROL,NONE_BTN} EButtonType;
 typedef enum {UP,DOWN,LEFT,RIGHT,NAV_DEFAULT} ENavigationDirection;
@@ -42,7 +44,83 @@ typedef enum {PRESET_PROCEDURE_OFF,PRESET_PROCEDURE_INIT, PRESET_PROCEDURE_WAITI
 			  PRESET_PROCEDURE_SEND_MAX_DECREASE_TERM, WAIT_MAX_DECREASE_TERM,PRESET_PROCEDURE_SEND_DESIRED_SLIP_TERM, 
 			  WAIT_DESIRED_SLIP_TERM, PRESET_PROCEDURE_SEND_MAX_INTEGRAL_TERM, WAIT_MAX_INTEGRAL_TERM, PRESET_PROCEDURE_SEND_SELECTED_PRESET,
 			  WAIT_SELECTED_PRESET, PRESET_PROCEDURE_FINISHED,PRESET_PROCEDURE_FAILED} EPresetStates;
-	
+			  
+			  
+			  
+//*******************************************************************************//
+//************************ DEFINES***********************************************//
+//*******************************************************************************//
+
+//***********************************************************************************
+//----------------------------------THRESHOLDS AND CRITICAL VALUES-----------------//
+//***********************************************************************************
+#define TORQUE_PEDAL_IN_THRESHOLD	100 // 10 % of total range which is 1000
+#define BRAKE_PEDAL_IN_THRESHOLD	1600
+
+#define BATTERY_TEMP_CRITICAL_HIGH 90
+#define MAX_CELL_VOLTAGE_TRESHOLD 4.2
+#define MIN_CELL_VOLTAGE_TRESHOLD 3.2
+#define BATTERY_PACK_MAX_VOLTAGE_TRESHOLD 600
+#define BATTERY_PACK_MIN_VOLTAGE_TRESHOLD 475
+
+#define GLV_MAX_CELL_VOLTAGE_TRESHOLD 4.2
+#define GLV_MIN_CELL_VOLTAGE_TRESHOLD 3.2
+#define GLV_PACK_MAX_VOLTAGE_TRESHOLD 28
+#define GLV_PACK_MIN_VOLTAGE_TRESHOLD 20
+
+// TEMPERATURE CONVERSION COEFFICIENTS
+#define TEMP_C_1 0.000000000007175
+#define TEMP_C_2 0.000000367
+#define TEMP_C_3 0.009898
+#define TEMP_C_4 124.831
+
+// IMU CONVERSION CONSTANTS
+#define IMU_ROT_G_C	0.000125
+#define IMU_VEL_C	0.00076923
+#define IMU_POS_C	10.0
+
+#define BMS_MAX_TEMP_TRESHOLD		45
+#define GLVBMS_MAX_TEMP_THRESHOLD	45
+
+#define GLV_BATTERY_FULL_VOLTAGE	29.4
+#define GLV_BATTERY_EMPTY_VOLTAGE	21.7
+#define GLV_BATTERY_VOLTAGE_RANGE	(GLV_BATTERY_FULL_VOLTAGE-GLV_BATTERY_EMPTY_VOLTAGE)
+
+#define HV_BATTERY_FULL_VOLTAGE		604.8
+#define HV_BATTERY_EMPTY_VOLTAGE	446.4
+#define HV_BATTERY_VOLTAGE_RANGE	(HV_BATTERY_FULL_VOLTAGE - HV_BATTERY_EMPTY_VOLTAGE)
+
+// BMS STATE VECTOR
+#define BMS_OVER_VOLTAGE		1
+#define BMS_UNDER_VOLTAGE		2
+#define BMS_OVER_CURRENT		4
+#define BMS_OVER_TEMPERATURE	8
+#define BMS_VIC_STATUS			16
+
+// INVERTER DATA STATUS VECTOR
+#define INVERTER_ENCODER_NOT_FOUND	(1<<16)	// Bit 16
+#define INVERTER_ENABLED			(1<<24) // Bit 24
+
+// ECU IMPLAUSIBILITIES VECTOR
+//0x00 = NONE, 0x01 TPS_MISMATCH, 0x02 TPS_BPS_IMPLAUSIBILIY, 0x03 SENSOR_ERROR, 0x04 OUTDATED DATA
+#define ECU_NO_IMPLAUSIBILITY		0x00
+#define ECU_TPS_MISMATCH			0x01
+#define ECU_TPS_BPS_IMPLAUSIBILITY	0x02
+#define	ECU_SENSOR_ERROR			0x03
+#define ECU_OUTDATED_DATA			0x04
+
+// BSPD STATUS
+#define BSPD_SHUTDOWN_NOT_ACTIVE	(1<<4)
+
+// IMD STATUS
+//0hz(IMD off or short to KL31), 10hz(Normal condition), 20hz(Under voltage), 30hz(Speed start), 40hz(IMD error), 50hz(GroundError), melding hvert sekund
+#define IMD_OFF				0
+#define IMD_NORMAL			10
+#define IMD_UNDER_VOLTAGE	20
+#define IMD_SPEED_START		30
+#define IMD_ERROR			40
+#define IMD_GROUND_ERROR	50
+
 typedef struct ButtonsOnDashboard {
 	bool unhandledButtonAction;
 	EButtonType btn_type;
@@ -87,6 +165,10 @@ typedef struct DeviceStatus {
 
 typedef struct ModuleErrorsReceivedOverCan{
 	uint16_t BMS_state_vector;
+	uint32_t inverter_data_status;
+	uint8_t bspd_status;
+	uint8_t ECU_implausibility;
+	uint8_t IMD_status;
 	bool ams_error; // Assume there will be sent msgs for NOTOK and OK
 	bool imd_error; // Assume there will be sent msgs for NOTOK and OK
 	
@@ -113,14 +195,16 @@ typedef struct ParameterValues { // Values of adjustable variables
 	
 	uint8_t traction_control_value;
 	uint8_t confirmed_traction_control_value;
-
 	
-	
-	
+	uint8_t min_fan_duty_cycle;
+	uint8_t max_fan_duty_cycle;
+	uint8_t radiator_fan_value;
+	uint8_t mono_fan_value;
+	uint8_t battery_fan_value;
+	uint8_t pump_setting_value;
 	/* If acknowledge is pressed while adjusting a parameter, a timer is started, if a confirmation msg is received 
 	before it times out the parameter of the current parameter adjustment menu is confirmed. This is handled in
 	getDashMessages function. If the user presses left the previous confirmed parameter will be displayed again*/
-	
 	} ParameterValue;
 	
 typedef struct SensorValuesReceivedOverCan {
@@ -128,7 +212,6 @@ typedef struct SensorValuesReceivedOverCan {
 	uint16_t brake_pressure_fl;
 	uint16_t temp_sensor_cooling;
 	uint16_t temp_sensor_gearbox;
-	
 	uint32_t bms_discharge_limit;
 } SensorValues;
 
@@ -142,10 +225,10 @@ typedef struct SensorValuesConvertedToPhysicalValues {
 	
 	int16_t steering_enc_data;
 	
-	int32_t motor_temperature;
-	int32_t IGBT_temperature;
-	int32_t gearbox_temperature;
-	
+	float cooling_temperature; // dele på 10
+	float gearbox_temperature; // dele på 10
+	float motor_2_temperature;
+
 	float Inverter_voltage;
 	
 	uint16_t BMS_max_temp;

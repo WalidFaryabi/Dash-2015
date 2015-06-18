@@ -21,6 +21,10 @@ struct SensorMessage {
 };
 struct SensorMessage SensorPacket;
 
+// Hack to read a fraction of the inverter messages, since they are sent way too often. 
+#define INVERTER_MESSAGE_DELAY_COUNTER 1000
+static uint32_t inverter_time_counter_status = 0;
+static uint32_t inverter_time_counter_voltage = 0;
 
 QueueHandle_t xDeviceStatusQueue = NULL;
 QueueHandle_t xRemoteControlQueue = NULL;
@@ -61,7 +65,6 @@ void init_CanHandling() {
 // To read the RTT timer value register: (in ms)
 //RTT->RTT_VR;
 
-static uint32_t dataloggerFailCounter = 0; // For testing capacity of datalogging
 
 void CAN0_Handler() {
 	NVIC_ClearPendingIRQ(CAN0_IRQn);
@@ -78,8 +81,7 @@ void CAN0_Handler() {
 			}
 		
 			switch (message.messageID) {
-				case ID_ALIVE:
-			
+				case ID_ALIVE:	
 					switch (message.data.u8[0]) {
 						case ALIVE_TRQ:
 						// Tells de
@@ -114,6 +116,8 @@ void CAN0_Handler() {
 				case ID_IN_ECU_TRACTION_CONTROL:
 				case ID_ECU_PARAMETER_CONFIRMED:
 				
+				//*************************//
+				//*****BATTERY SYSTEMS*****//
 				case ID_BMS_STATE_MESSAGE:
 				case BMS_MAXMIN_VTG_ID:
 				case BMS_TOTVTG_ID:
@@ -130,21 +134,44 @@ void CAN0_Handler() {
 				
 				case ID_ECU_CAR_STATES:
 				case ID_IN_ECU_LC:
+				//************//
+				//*****ADC****//
 				case ID_SPEED_FL:
 				case ID_SPEED_FR:
 				case ID_SPEED_RR:
 				case ID_SPEED_RL:
 				case ID_TEMP_COOLING:
 				case ID_TEMP_GEARBOX:
+				case ID_TEMP_MOTOR_2:
 				case ID_BRAKE_PRESSURE_FL:
 				case ID_BRAKE_PRESSURE_FR:
 				case ID_DAMPER_FL:
 				case ID_DAMPER_FR:
 				case ID_DAMPER_RL:
 				case ID_DAMPER_RR:
+				case ECU_CURRENT_IMPLAUSIBILITY_DATA:
+				case ID_BSPD_STATUS:
+				case ID_IMD_STATUS:
 					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
+				break;	
+				case CAN_INVERTER_DATA_STATUS_ID:
+					inverter_time_counter_status += 1;
+					if (inverter_time_counter_status == INVERTER_MESSAGE_DELAY_COUNTER){
+						inverter_time_counter_status = 0;
+						xQueueSendToBackFromISR(xDashQueue,&message,NULL);
+					}
 				break;
-			break;	
+				
+				case CAN_INVERTER_DATA_VOLTAGE_ID:
+					inverter_time_counter_voltage += 1;
+					if (inverter_time_counter_voltage == INVERTER_MESSAGE_DELAY_COUNTER){
+						inverter_time_counter_voltage = 0;
+						xQueueSendToBackFromISR(xDashQueue,&message,NULL);
+					}
+				break;
+
+				
+				
 			}
 		}
 		portEND_SWITCHING_ISR(lHigherPriorityTaskWoken);
@@ -180,54 +207,71 @@ void CAN1_Handler() {
 							xQueueSendToBackFromISR(xDeviceStatusQueue, &message.data.u8[0], NULL);
 							break;
 					}
-				
-					//***************************************//
-					//--------------DASH TASK----------------//
-					//***************************************//
-					case ID_TRQ_CONF:
+				break;
+				//***************************************//
+				//--------------DASH TASK----------------//
+				//***************************************//
+				case ID_TRQ_CONF:
 					message.messageID = ID_TRQ_CONF_CH1;
 					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
-					break;
+				break;
 				
-					case ID_BMS_STATE_MESSAGE:
-					case BMS_MAXMIN_VTG_ID:
-					case BMS_TOTVTG_ID:
-					case BMS_TEMP_ID:
-					case BMS_MAXMIN_TEMP_ID:
+				case ID_BMS_STATE_MESSAGE:
+				case BMS_MAXMIN_VTG_ID:
+				case BMS_TOTVTG_ID:
+				case BMS_TEMP_ID:
+				case BMS_MAXMIN_TEMP_ID:
 					
-					case GLVBMS_MAXMIN_VAL_ID:
-					case GLVBMS_TOTVTG_ID:
-					//case CAN_INVERTER_DATA_VOLTAGE_ID:
+				case GLVBMS_MAXMIN_VAL_ID:
+				case GLVBMS_TOTVTG_ID:
+				//case CAN_INVERTER_DATA_VOLTAGE_ID:
 					
-					//*********ECU RELATED***********//
-					case ID_ECU_CAR_STATES:
-					case ID_IN_ECU_LC:
-					case ID_IN_ECU_TRACTION_CONTROL:
-					case ID_ECU_PARAMETER_CONFIRMED:
-					//*******************************//
+				//*********ECU RELATED***********//
+				case ID_ECU_CAR_STATES:
+				case ID_IN_ECU_LC:
+				case ID_IN_ECU_TRACTION_CONTROL:
+				case ID_ECU_PARAMETER_CONFIRMED:
+				//*******************************//
 				
-					//*******TORQUE AND STEERING*****//
-					case ID_TORQUE_ENCODER_0_DATA:
-					case ID_TORQUE_ENCODER_1_DATA:
-					//*******************************//
+				//*******TORQUE AND STEERING*****//
+				case ID_TORQUE_ENCODER_0_DATA:
+				case ID_TORQUE_ENCODER_1_DATA:
+				//*******************************//
 				
-					//*************ADC***************//
-					case ID_SPEED_FL:
-					case ID_SPEED_FR:
-					case ID_SPEED_RR:
-					case ID_SPEED_RL:
-					case ID_TEMP_COOLING:
-					case ID_TEMP_GEARBOX:
-					case ID_BRAKE_PRESSURE_FL:
-					case ID_BRAKE_PRESSURE_FR:
-					case ID_DAMPER_FL:
-					case ID_DAMPER_FR:
-					case ID_DAMPER_RL:
-					case ID_DAMPER_RR:
-					//*******************************//
-					case ID_IMD_SHUTDOWN:
+				//*************ADC***************//
+				case ID_SPEED_FL:
+				case ID_SPEED_FR:
+				case ID_SPEED_RR:
+				case ID_SPEED_RL:
+				case ID_TEMP_COOLING:
+				case ID_TEMP_GEARBOX:
+				case ID_BRAKE_PRESSURE_FL:
+				case ID_BRAKE_PRESSURE_FR:
+				case ID_DAMPER_FL:
+				case ID_DAMPER_FR:
+				case ID_DAMPER_RL:
+				case ID_DAMPER_RR:
+				//*******************************//
+				case ID_IMD_SHUTDOWN:
+				case ECU_CURRENT_IMPLAUSIBILITY_DATA:
+				case ID_BSPD_STATUS:
+				case ID_IMD_STATUS:
 					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
-					break;
+				break;
+				case CAN_INVERTER_DATA_STATUS_ID:
+					inverter_time_counter_status += 1;
+					if (inverter_time_counter_status == INVERTER_MESSAGE_DELAY_COUNTER){
+						inverter_time_counter_status = 0;
+						xQueueSendToBackFromISR(xDashQueue,&message,NULL);
+					}
+				break;
+				
+				case CAN_INVERTER_DATA_VOLTAGE_ID:
+					inverter_time_counter_voltage += 1;
+					if (inverter_time_counter_voltage == INVERTER_MESSAGE_DELAY_COUNTER){
+						inverter_time_counter_voltage = 0;
+						xQueueSendToBackFromISR(xDashQueue,&message,NULL);
+					}
 				break;
 			}
 		}

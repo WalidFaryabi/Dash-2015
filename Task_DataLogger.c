@@ -115,6 +115,9 @@ void dataLoggerTask() {
 				if ( (pio_readPin(DETECT_USB_PIO,DETECT_USB_PIN) == 1 )  && (dataLoggerHandle == xSemaphoreGetMutexHolder(file_access_mutex)) ) {
 					dataloggerState = DATALOGGER_USB_CONNECTED;
 					xSemaphoreGive(file_access_mutex);
+					// Disable CAN interrupts while USB is connected
+					can_disableRXInterrupt(CAN0_IRQn);
+					can_disableRXInterrupt(CAN1_IRQn);
 				}
 				// Send command to datalogger to extract data from SD card and send it to task_menu via a queue ?
 				
@@ -126,6 +129,9 @@ void dataLoggerTask() {
 					f_truncate(&file_object);
 					f_close(&file_object);
 					xSemaphoreGive(file_access_mutex);
+					// Disable CAN interrupts if USB is connected
+					can_disableRXInterrupt(CAN0_IRQn);
+					can_disableRXInterrupt(CAN1_IRQn);
 					break;
 				}
 				switch(currentCommand) {
@@ -148,6 +154,10 @@ void dataLoggerTask() {
 					// If USB is not connected and the datalogger doesnt own the file mutex -> aquire it
 					xSemaphoreTake(file_access_mutex,portMAX_DELAY);
 					dataloggerState = DATALOGGER_IDLE;
+					// Leaving USB CONNECTED STATE : ENABLE CAN INTERRUPTS
+					can_enableRXInterrupt(CAN0_IRQn);
+					can_enableRXInterrupt(CAN1_IRQn);
+					
 				}
 				vTaskDelay(5/portTICK_RATE_MS);
 			break;
