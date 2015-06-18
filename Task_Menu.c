@@ -1376,18 +1376,6 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 			case CAN_INVERTER_DATA_STATUS_ID:
 				// bits.. 
 				error->inverter_data_status = ReceiveMsg.data.u32[0];
-// 				if (ReceiveMsg.data.u32[0] & INVERTER_ENCODER_NOT_FOUND ) {
-// 					
-// 				}
-// 				else {
-// 					// Encoder pos found
-// 				}
-// 				if (ReceiveMsg.data.u32[0] & INVERTER_ENABLED) {
-// 					
-// 				}
-// 				else {
-// 					// inverter not enabled
-// 				}
 			break;
 			case CAN_INVERTER_DATA_VOLTAGE_ID:
 				sensorPhysicalValue->Inverter_voltage = ReceiveMsg.data.f[0];
@@ -1441,8 +1429,6 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 					break;
 				}
 			break;
-			
-			
 			case BMS_STATE_MSG_ID:
 			// Using "shut_down_circuit_closed" as tractive system activated variable
 				error->BMS_state_vector = ReceiveMsg.data.u16[0];
@@ -1568,6 +1554,27 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 // 				sensorPhysicalValue->GLVBMS_max_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[0],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[0],2) - TEMP_C_3*(ReceiveMsg.data.u16[0]) + TEMP_C_4;
 // 				sensorPhysicalValue->GLVBMS_min_temp = -TEMP_C_1*pow(ReceiveMsg.data.u16[1],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[1],2) - TEMP_C_3*(ReceiveMsg.data.u16[1]) + TEMP_C_4;
 // 			break;
+			case ID_FAN_CONTROL:
+				switch (ReceiveMsg.data.u8[0]) {
+					case 1:
+					// Radiator fan
+						parameter->radiator_fan_value	= ReceiveMsg.data.u8[2];
+					break;
+					case 2:
+					// Battery fan
+						parameter->battery_fan_value	= ReceiveMsg.data.u8[2];
+					break;
+					case 3:
+					// Mono fan
+						parameter->mono_fan_value		= ReceiveMsg.data.u8[2];
+					break;
+					case 4:
+					// Pump
+						parameter->pump_setting_value	= ReceiveMsg.data.u8[2];
+					break;
+				}
+			break;
+
 			case ID_STEERING_ENCODER_DATA:
 				sensorPhysicalValue->steering_enc_data = ReceiveMsg.data.u8[0] << 8 | ReceiveMsg.data.u8[1];
 			break;
@@ -1587,10 +1594,10 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 			case ID_SPEED_RL:
 			break;
 			case ID_TEMP_COOLING:
-				sensorPhysicalValue->cooling_temperature = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 10;
+				sensorPhysicalValue->cooling_temperature = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100;
 			break;
 			case ID_TEMP_GEARBOX:
-				sensorPhysicalValue->gearbox_temperature = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 10;
+				sensorPhysicalValue->gearbox_temperature = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100;
 			break;
 			case ID_BRAKE_PRESSURE_FL:
 				sensorPhysicalValue->brake_pressure_fl = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]);
