@@ -22,7 +22,7 @@ struct SensorMessage {
 struct SensorMessage SensorPacket;
 
 // Hack to read a fraction of the inverter messages, since they are sent way too often. 
-#define INVERTER_MESSAGE_DELAY_COUNTER 1000
+#define INVERTER_MESSAGE_DELAY_COUNTER 80
 static uint32_t inverter_time_counter_status = 0;
 static uint32_t inverter_time_counter_voltage = 0;
 
