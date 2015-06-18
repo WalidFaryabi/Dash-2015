@@ -231,14 +231,14 @@ typedef struct SensorValuesConvertedToPhysicalValues {
 
 	float Inverter_voltage;
 	
-	uint16_t BMS_max_temp;
+	float BMS_max_temp;
 	uint16_t BMS_max_temp_cell_id;
-	uint16_t BMS_min_temp;
+	float BMS_min_temp;
 	uint16_t BMS_min_temp_cell_id;
 	
-	uint16_t GLVBMS_max_temp;
+	float GLVBMS_max_temp;
 	uint16_t GLVBMS_max_temp_cell_id;
-	uint16_t GLVBMS_min_temp;
+	float GLVBMS_min_temp;
 	uint16_t GLVBMS_min_temp_cell_id;
 	
 	

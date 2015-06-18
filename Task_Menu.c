@@ -1504,8 +1504,8 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 				sensorPhysicalValue->GLV_voltage_max_cell = (ReceiveMsg.data.u16[0]/(float) 10000);
 				sensorPhysicalValue->GLV_voltage_min_cell = (ReceiveMsg.data.u16[1]/(float) 10000);
 				
-				sensorPhysicalValue->GLVBMS_max_temp = (uint16_t) fabs( -TEMP_C_1*pow(ReceiveMsg.data.u16[2],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[2],2) - TEMP_C_3*(ReceiveMsg.data.u16[2]) + TEMP_C_4 );
-				sensorPhysicalValue->GLVBMS_min_temp = (uint16_t) fabs(-TEMP_C_1*pow(ReceiveMsg.data.u16[3],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[3],2) - TEMP_C_3*(ReceiveMsg.data.u16[3]) + TEMP_C_4 );
+				sensorPhysicalValue->GLVBMS_max_temp =  -TEMP_C_1*pow(ReceiveMsg.data.u16[2],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[2],2) - TEMP_C_3*(ReceiveMsg.data.u16[2]) + TEMP_C_4;
+				sensorPhysicalValue->GLVBMS_min_temp =  -TEMP_C_1*pow(ReceiveMsg.data.u16[3],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[3],2) - TEMP_C_3*(ReceiveMsg.data.u16[3]) + TEMP_C_4;
 			break;
 			case GLVBMS_TOTVTG_ID:
 				
@@ -1540,8 +1540,8 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 				sensorPhysicalValue->BMS_max_temp_cell_id = ReceiveMsg.data.u16[2];
 				sensorPhysicalValue->BMS_min_temp_cell_id = ReceiveMsg.data.u16[3];
 				
-				sensorPhysicalValue->BMS_max_temp = (uint16_t) fabs( -TEMP_C_1*pow(ReceiveMsg.data.u16[0],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[0],2) - TEMP_C_3*(ReceiveMsg.data.u16[0]) + TEMP_C_4);
-				sensorPhysicalValue->BMS_min_temp = (uint16_t) fabs( -TEMP_C_1*pow(ReceiveMsg.data.u16[1],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[1],2) - TEMP_C_3*(ReceiveMsg.data.u16[1]) + TEMP_C_4);
+				sensorPhysicalValue->BMS_max_temp =  -TEMP_C_1*pow(ReceiveMsg.data.u16[0],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[0],2) - TEMP_C_3*(ReceiveMsg.data.u16[0]) + TEMP_C_4;
+				sensorPhysicalValue->BMS_min_temp =  -TEMP_C_1*pow(ReceiveMsg.data.u16[1],3) + TEMP_C_2*pow(ReceiveMsg.data.u16[1],2) - TEMP_C_3*(ReceiveMsg.data.u16[1]) + TEMP_C_4;
 			
 			break;
 			
@@ -1586,8 +1586,6 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 			case ID_TORQUE_ENCODER_1_DATA:
 				sensorPhysicalValue->torque_encoder_ch1 = ReceiveMsg.data.u8[0] << 8 | ReceiveMsg.data.u8[1];
 			break;	
-				
-				
 			case ID_SPEED_FL:
 			case ID_SPEED_FR:
 			case ID_SPEED_RR:
@@ -2610,19 +2608,22 @@ static void DrawTempAndVoltScreen(SensorPhysicalValues *tempvolt) {
 	cmd_number(105, 60, 29, OPT_CENTER,tempvolt->BMS_max_temp_cell_id);
 	if(tempvolt->BMS_max_temp > BMS_MAX_TEMP_TRESHOLD){
 		cmd(COLOR_RGB(255,0,0));
-		cmd_number(50, 90, 31, OPT_CENTER, tempvolt->BMS_max_temp);
+		DrawIMUFloat(50,90,28,tempvolt->BMS_max_temp);
+		//cmd_number(50, 90, 31, OPT_CENTER, tempvolt->BMS_max_temp);
 		cmd_text(95, 95, 22, OPT_CENTER, "C");
 		cmd(COLOR_RGB(255,255,255));
 	}
 	else {
 		cmd(COLOR_RGB(255,255,255));
-		cmd_number(50, 90, 31, OPT_CENTER, tempvolt->BMS_max_temp);
+		DrawIMUFloat(50,90,28,tempvolt->BMS_max_temp);
+		//cmd_number(50, 90, 31, OPT_CENTER, tempvolt->BMS_max_temp);
 		cmd_text(95, 95, 22, OPT_CENTER, "C");
 	}
 	
 	cmd_text(60, 130, 26, OPT_CENTER, "BMS MIN");
 	cmd_number(105, 130, 29, OPT_CENTER,tempvolt->BMS_min_temp_cell_id);
-	cmd_number(50, 160, 31, OPT_CENTER, tempvolt->BMS_min_temp);
+	DrawIMUFloat(50,160,28,tempvolt->BMS_min_temp);
+	//cmd_number(50, 160, 31, OPT_CENTER, tempvolt->BMS_min_temp);
 	cmd_text(95, 165, 22, OPT_CENTER, "C");
 	
 	cmd(COLOR_RGB(255,255,255));
@@ -2635,19 +2636,22 @@ static void DrawTempAndVoltScreen(SensorPhysicalValues *tempvolt) {
 	//cmd_number(235, 60, 27, OPT_CENTER, tempvolt->GLVBMS_max_temp_cell_id);
 	if(tempvolt->GLVBMS_max_temp > GLVBMS_MAX_TEMP_THRESHOLD){
 		cmd(COLOR_RGB(255,0,0));
-		cmd_number(170, 90, 31, OPT_CENTER, tempvolt->GLVBMS_max_temp);
+		DrawIMUFloat(170,90,28,tempvolt->GLVBMS_max_temp);
+		
+		//cmd_number(170, 90, 31, OPT_CENTER, tempvolt->GLVBMS_max_temp);
 		cmd_text(215, 95, 29, OPT_CENTER, "C");
 		cmd(COLOR_RGB(255,255,255));
 	}
 	else {
-		cmd_number(170, 90, 31, OPT_CENTER, tempvolt->GLVBMS_max_temp);
+		DrawIMUFloat(170,90,28,tempvolt->GLVBMS_max_temp);
+		//cmd_number(170, 90, 31, OPT_CENTER, tempvolt->GLVBMS_max_temp);
 		cmd_text(215, 95, 29, OPT_CENTER, "C");
 	}
 	
 	cmd_text(180, 130, 26, OPT_CENTER, "GLVBMS MIN" );
 	//cmd_number(235, 130, 27, OPT_CENTER, 0);//tempvolt->GLVBMS_min_temp_cell_id);
-	
-	cmd_number(170, 160, 31, OPT_CENTER, tempvolt->GLVBMS_min_temp);
+	DrawIMUFloat(170,160,28,tempvolt->GLVBMS_min_temp);
+	//cmd_number(170, 160, 31, OPT_CENTER, tempvolt->GLVBMS_min_temp);
 	cmd_text(215, 165, 29, OPT_CENTER, "C");
 	
 	
