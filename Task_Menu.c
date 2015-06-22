@@ -1530,7 +1530,7 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 			break;
 			case BMS_CURRENT_ID:
 				sensorPhysicalValue->current_counter = (float) ReceiveMsg.data.i32[1] * 0.01;
-				sensorPhysicalValue->HV_battery_percent = (sensorPhysicalValue->current_counter / HV_BATTERY_TOTAL_CURRENT) (float) 100;	
+				sensorPhysicalValue->HV_battery_percent = (sensorPhysicalValue->current_counter / HV_BATTERY_TOTAL_CURRENT) * (float) 100;	
 			break;
 			case BMS_MAXMIN_VTG_ID:
 // 				sensorPhysicalValue->max_cell_id = ReceiveMsg.data.u16[2];
