@@ -122,6 +122,7 @@ void CAN0_Handler() {
 				case BMS_MAXMIN_VTG_ID:
 				case BMS_TOTVTG_ID:
 				case BMS_MAXMIN_TEMP_ID:
+				case BMS_CURRENT_ID:
 				
 				case GLVBMS_MAXMIN_VAL_ID:
 				case GLVBMS_TOTVTG_ID:
@@ -152,6 +153,7 @@ void CAN0_Handler() {
 				case ECU_CURRENT_IMPLAUSIBILITY_DATA:
 				case ID_BSPD_STATUS:
 				case ID_IMD_STATUS:
+				case ID_FAN_STATUS:
 					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
 				break;	
 				case CAN_INVERTER_DATA_STATUS_ID:
@@ -169,9 +171,6 @@ void CAN0_Handler() {
 						xQueueSendToBackFromISR(xDashQueue,&message,NULL);
 					}
 				break;
-
-				
-				
 			}
 		}
 		portEND_SWITCHING_ISR(lHigherPriorityTaskWoken);
@@ -221,6 +220,7 @@ void CAN1_Handler() {
 				case BMS_TOTVTG_ID:
 				case BMS_TEMP_ID:
 				case BMS_MAXMIN_TEMP_ID:
+				case BMS_CURRENT_ID:
 					
 				case GLVBMS_MAXMIN_VAL_ID:
 				case GLVBMS_TOTVTG_ID:

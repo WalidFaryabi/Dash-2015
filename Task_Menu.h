@@ -17,7 +17,7 @@ typedef enum {MAIN_SCREEN,SYSTEM_MONITOR,TEMP_VOLT,MAIN_MENU,MAIN_MENU_DOWN, KER
 			  
 typedef enum {NO_SETTING,TORQUE_SETTING,KERS_SETTING, TRACTION_CONTROL_SETTING, DL_PREALLOCATE,PRESET_1_SETTING,PRESET_2_SETTING,
 			  PRESET_3_SETTING,PRESET_4_SETTING,PRESET_5_SETTING,PRESET_6_SETTING,PRESET_7_SETTING,PRESET_8_SETTING, CONFIRM_YES, CONFIRM_NO,
-			  PUMP_SETTING, RADIATOR_FAN_SETTING, MONO_FAN_SETTING, BATTERY_FAN_SETTING } EAdjustmentParameter;
+			  PUMP_SETTING, RADIATOR_FAN_SETTING, MONO_FAN_SETTING, BATTERY_FAN_SETTING,ALL_FAN_SETTING } EAdjustmentParameter;
 			  
 typedef enum {NAVIGATION,PUSH_ACK,ROTARY,ROT_ACK,START,LAUNCH_CONTROL,NONE_BTN} EButtonType;
 typedef enum {UP,DOWN,LEFT,RIGHT,NAV_DEFAULT} ENavigationDirection;
@@ -68,7 +68,7 @@ typedef enum {PRESET_PROCEDURE_OFF,PRESET_PROCEDURE_INIT, PRESET_PROCEDURE_WAITI
 #define GLV_PACK_MAX_VOLTAGE_TRESHOLD 28
 #define GLV_PACK_MIN_VOLTAGE_TRESHOLD 20
 
-// TEMPERATURE CONVERSION COEFFICIENTS
+// BMS/GLVBMS TEMPERATURE CONVERSION COEFFICIENTS
 #define TEMP_C_1 0.000000000007175
 #define TEMP_C_2 0.000000367
 #define TEMP_C_3 0.009898
@@ -86,6 +86,7 @@ typedef enum {PRESET_PROCEDURE_OFF,PRESET_PROCEDURE_INIT, PRESET_PROCEDURE_WAITI
 #define GLV_BATTERY_EMPTY_VOLTAGE	21.7
 #define GLV_BATTERY_VOLTAGE_RANGE	(GLV_BATTERY_FULL_VOLTAGE-GLV_BATTERY_EMPTY_VOLTAGE)
 
+#define HV_BATTERY_TOTAL_CURRENT	12.5	
 #define HV_BATTERY_FULL_VOLTAGE		604.8
 #define HV_BATTERY_EMPTY_VOLTAGE	446.4
 #define HV_BATTERY_VOLTAGE_RANGE	(HV_BATTERY_FULL_VOLTAGE - HV_BATTERY_EMPTY_VOLTAGE)
@@ -198,6 +199,7 @@ typedef struct ParameterValues { // Values of adjustable variables
 	
 	uint8_t min_fan_duty_cycle;
 	uint8_t max_fan_duty_cycle;
+	uint8_t all_fan_setting;
 	uint8_t radiator_fan_value;
 	uint8_t mono_fan_value;
 	uint8_t battery_fan_value;
@@ -225,8 +227,8 @@ typedef struct SensorValuesConvertedToPhysicalValues {
 	
 	int16_t steering_enc_data;
 	
-	float cooling_temperature; // dele på 10
-	float gearbox_temperature; // dele på 10
+	float cooling_temperature; // dele på 100
+	float gearbox_temperature; // dele på 100
 	float motor_2_temperature;
 
 	float Inverter_voltage;
@@ -243,6 +245,8 @@ typedef struct SensorValuesConvertedToPhysicalValues {
 	
 	
 	float battery_voltage;
+	float current_counter;
+	
 	uint16_t min_cell_id;
 	uint16_t max_cell_id;
 	float max_cell_voltage;

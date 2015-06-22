@@ -6,6 +6,13 @@
 #include "DriversNotInBase/revolve_can_definitions.h"
 #include "canID_definitions.h"
 
+// Identifier for Modules on FAN card
+#define RADIATOR_FAN_ID		1
+#define BATTERY_FAN_ID		2
+#define MONO_FAN_ID			3
+#define PUMP_ID				4
+#define TOGGLE_ALL_FANS_ID	7
+
 struct CanMessage IAmAlive = {
 	.dataLength = 1,
 	.data.u8[0] = ALIVE_DASH,
@@ -68,33 +75,47 @@ struct CanMessage RequestLCArmed = {
 struct CanMessage TurnOffPump = {
 	.messageID = ID_FAN_CONTROL,
 	.dataLength = 3,
-	.data.u8[0] = 4,
+	.data.u8[0] = PUMP_ID,
 	.data.u8[1] = 0,
 	.data.u8[2] = 0
 	};
 struct CanMessage TurnOnPump = {
 	.messageID = ID_FAN_CONTROL,
 	.dataLength = 3,
-	.data.u8[0] = 4,
+	.data.u8[0] = PUMP_ID,
 	.data.u8[1] = 0,
 	.data.u8[2] = 1
 };	
+struct CanMessage TurnOffAllFans = {
+	.messageID = ID_FAN_CONTROL,
+	.dataLength = 3,
+	.data.u8[0] = TOGGLE_ALL_FANS_ID,
+	.data.u8[1] = 0,
+	.data.u8[2] = 0
+	};
+struct CanMessage TurnOnAllFans = {
+	.messageID = ID_FAN_CONTROL,
+	.dataLength = 3,
+	.data.u8[0] = TOGGLE_ALL_FANS_ID,
+	.data.u8[1] = 0,
+	.data.u8[2] = 1
+};
 struct CanMessage AdjustDutyCycleRadiatorFan = {
 	.messageID = ID_FAN_CONTROL,
 	.dataLength = 3,
-	.data.u8[0] = 1,
+	.data.u8[0] = RADIATOR_FAN_ID,
 	.data.u8[1] = 0
 };
 struct CanMessage AdjustDutyCycleBatteryFan = {
 	.messageID = ID_FAN_CONTROL,
 	.dataLength = 3,
-	.data.u8[0] = 2,
+	.data.u8[0] = BATTERY_FAN_ID,
 	.data.u8[1] = 0
 };
 struct CanMessage AdjustDutyCycleMonoFan = {
 	.messageID = ID_FAN_CONTROL,
 	.dataLength = 3,
-	.data.u8[0] = 3,
+	.data.u8[0] = MONO_FAN_ID,
 	.data.u8[1] = 0
 };
 // 0-100

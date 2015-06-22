@@ -15,17 +15,14 @@
 #define ID_ECU_LC					0x262
 #define ID_FINISHED_RTDS			0x263
 #define ID_ECU_PARAMETERS			0x264
-#define ID_ECU_P_TERM				0x265
-#define ID_ECU_I_TERM				0x266
 
 
 #define ID_TORQUE_PEDAL_CALIBRATION	0x460
 #define ID_STEERING_CALIBRATION		0x461
 
 #define ID_DASH_ACKNOWLEDGE			0x660
-#define ID_I_AM_ALIVE				0x661
 
-#define ID_FAN_CONTROL				0x280
+#define ID_FAN_CONTROL				0x265
 
 //***************************************//
 //************INCOMING*******************//
@@ -39,6 +36,7 @@
 
 #define ID_BSPD_STATUS				0x668
 #define ID_IMD_STATUS				0x670
+#define ID_FAN_STATUS				0x682
 
 #define ID_BMS_TRACTIVE_SYSTEM_ACTIVE 0x62B
 #define ID_BMS_MAX_MIN_VALUES		0x62D
