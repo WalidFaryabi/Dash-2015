@@ -154,6 +154,7 @@ void CAN0_Handler() {
 				case ID_BSPD_STATUS:
 				case ID_IMD_STATUS:
 				case ID_FAN_STATUS:
+				case ID_IMD_SHUTDOWN:
 					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
 				break;	
 				case CAN_INVERTER_DATA_STATUS_ID:

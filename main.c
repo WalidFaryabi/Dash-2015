@@ -101,9 +101,10 @@ static void hardwareInit() {
 	};
 	pmc_init(pmcInit);
 	//Timer init for datalogger used in Canhandler
-	RTT->RTT_MR |= 1<<20;
-	RTT->RTT_MR = 0;
-	RTT->RTT_MR &= ~(1<<17);
+	//  RTT has a ca measured drift of 6-7 seconds over 1 minute.. Consider using a high def hardware timer.
+	RTT->RTT_MR |= 1<<20;	// Disables RTT
+	RTT->RTT_MR = 0;		// Enables and sets all fields to 0 
+	RTT->RTT_MR &= ~(1<<17); 
 	RTT->RTT_MR = 33; // Sets divider to 33 which gives a 1 ms tick period
 	SystemCoreClock = 120000000; // Set the system core clock parameter in freertos config
 	//USB DIV = 5 ( 16*15/5 = 48 Mhz)

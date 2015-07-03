@@ -262,7 +262,7 @@ const MenuEntry menu[] = {
 #define PRESET_PROCEDURE_POS		37
 
 #define NUM_MENUS_UPDATE 2 // Number of menus to specifiy a certain update frequency for
-#define RTDS_DURATION_MS 1500/portTICK_RATE_MS
+#define RTDS_DURATION_MS 2300/portTICK_RATE_MS
 #define WATCHDOG_RESET_COMMAND  ( (0xA5 << 24) | (1<<0)) // Command to write to WDT CR register to reset the counter
 
 // Identifiers for parameters sent to ECU
@@ -1306,9 +1306,13 @@ static void LEDHandler(SensorPhysicalValues *sensorPhysicalValue, ModuleError *e
 		//set low
 		pio_setOutput(TEMP_LED_PIO,TEMP_LED_PIN,PIN_LOW);
 	}
-	if ( (sensorPhysicalValue->battery_voltage > BATTERY_PACK_MAX_VOLTAGE_TRESHOLD) || (sensorPhysicalValue->battery_voltage < BATTERY_PACK_MIN_VOLTAGE_TRESHOLD) ) {
+	
+	if ( sensorPhysicalValue->min_cell_voltage < HV_MIN_CELL_VOLTAGE_TORQUE_LIMIT_TRESHOLD ) {
 		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_HIGH);
 	}
+// 	if ( (sensorPhysicalValue->battery_voltage > BATTERY_PACK_MAX_VOLTAGE_TRESHOLD) || (sensorPhysicalValue->battery_voltage < BATTERY_PACK_MIN_VOLTAGE_TRESHOLD) ) {
+// 		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_HIGH);
+// 	}
 	else {
 		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_LOW);
 	}
@@ -1529,8 +1533,11 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 				
 			break;
 			case BMS_CURRENT_ID:
-				sensorPhysicalValue->current_counter = (float) ReceiveMsg.data.i32[1] * 0.01;
-				sensorPhysicalValue->HV_battery_percent = (sensorPhysicalValue->current_counter / HV_BATTERY_TOTAL_CURRENT) * (float) 100;	
+				sensorPhysicalValue->current_counter = ((float) (ReceiveMsg.data.i32[1])) * (float) 0.01;
+				sensorPhysicalValue->HV_battery_percent = 100.0 - (sensorPhysicalValue->current_counter / HV_BATTERY_TOTAL_CURRENT) * (float) 100;
+				if ( (sensorPhysicalValue->HV_battery_percent > 100 ) || (sensorPhysicalValue->HV_battery_percent < 0) ) {
+					sensorPhysicalValue->HV_battery_percent = 100;
+				}
 			break;
 			case BMS_MAXMIN_VTG_ID:
 // 				sensorPhysicalValue->max_cell_id = ReceiveMsg.data.u16[2];

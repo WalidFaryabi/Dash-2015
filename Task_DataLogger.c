@@ -56,8 +56,8 @@ struct CanMessage benchmsg = {
 };
 
 
-static char datalog_msg[BUFFER_OFFSET];
 static char dataLogger_buffer[BUFFER_LENGTH] = "";
+static char can_data_string[17] = "";
 
 enum EDataloggerStates dataloggerState = DATALOGGER_IDLE;
 QueueHandle_t xDataloggerCommandQueue = NULL;
@@ -66,6 +66,9 @@ QueueHandle_t xPresetQueue = NULL;
 UINT byte_written;
 static uint32_t timeStamp = 0;
 static uint32_t offset = 0;
+static uint8_t current_message_length = 0;
+ 
+
 uint32_t file_size_byte_counter = 0;
 uint8_t number_of_files_sdcard = 0;
 static uint32_t preallocation_counter = 0;
@@ -86,8 +89,8 @@ void dataLoggerTask() {
 	
 	// Create and start logging to a new file automatically
 	xSemaphoreTake(file_access_mutex,portMAX_DELAY);
-	//createOpenSeekNewFile();
-	//dataloggerState = DATALOGGER_LOGGING;
+	createOpenSeekNewFile();
+	dataloggerState = DATALOGGER_LOGGING;
 	
 	while(1) {
 		
@@ -195,7 +198,7 @@ static void logDataToCurrentFile() {
 	//if (xQueueReceive(xDataLoggerQueue,&SensorPacketReceive,0) == pdPASS) { // Blocks until it has received an element
 	if (xQueueReceive(xDataLoggerQueue,&SensorPacketReceive,1/portTICK_RATE_MS) == pdPASS) { // Blocks until it has received an element
 		//can_sendMessage(CAN0, txmsg);
-		if (offset == BUFFER_ADJUST) {
+		if (offset >= (BUFFER_LENGTH-MAX_MESSAGE_SIZE)) {
 			offset = 0;			
 			
 			file_size_byte_counter	+= 1;
@@ -215,41 +218,65 @@ static void logDataToCurrentFile() {
 			f_lseek(&file_object, f_tell(&file_object)  - PREALLOCATION_BYTES	);
 			preallocation_counter = 0;
 		}
-		
-		switch (SensorPacketReceive.can_msg.dataLength) {
-			case 0:
-			snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016x}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID,0);
-			break;
-			case 1:
-			snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016x}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u8[0]);
-			break;
-			case 2:
-			snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016x}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u16[0]);
-			break;
-			case 3:
-			snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016lx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u32[0]	& 0x00FFFFFF);
-			break;
-			case 4:
-			snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016lx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u32[0]);
-			break;
-			case 5:
-			snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64 & 0x000000FFFFFFFFFF);
-			break;
-			case 6:
-			snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64 & 0x0000FFFFFFFFFFFF);
-			break;
-			case 7:
-			snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64 & 0x00FFFFFFFFFFFFFF);
-			break;
-			case 8:
-			snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64);
-			break;
+		if (SensorPacketReceive.can_msg.dataLength == 0) {
+			// Handle special case of empty message. Add a zero to make revolve analyze happy
+			current_message_length = FIXED_MESSAGE_LENGTH + 2;
 		}
+		else {
+			current_message_length = FIXED_MESSAGE_LENGTH + (SensorPacketReceive.can_msg.dataLength*2);
+		}
+		
+// 		for (int i = 0; i < SensorPacketReceive.can_msg.dataLength; i++){
+// 			sprintf(can_data_string, "%s%02X", can_data_string, SensorPacketReceive.can_msg.data.u8[i]);
+// 		}
+// 		
+		if ( SensorPacketReceive.can_msg.dataLength == 0) {
+			sprintf(can_data_string, "%02x",0x00);
+		}
+		else {	
+			for (uint8_t i = 0; i < SensorPacketReceive.can_msg.dataLength;i++) {
+				sprintf(can_data_string, "%s%02x",can_data_string, SensorPacketReceive.can_msg.data.u8[i]);
+			}
+		}
+		snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%s}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID,can_data_string);
+		
+		*can_data_string = 0;
+		
+// 		switch (SensorPacketReceive.can_msg.dataLength) {
+// 			case 0:
+// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%x}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID,0);
+// 			break;
+// 			case 1:
+// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%x}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u8[0]);
+// 			break;
+// 			case 2:
+// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%x}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u16[0]);
+// 			break;
+// 			case 3:
+// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%lx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u32[0]	& 0x00FFFFFF);
+// 			break;
+// 			case 4:
+// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%lx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u32[0]);
+// 			break;
+// 			case 5:
+// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64 & 0x000000FFFFFFFFFF);
+// 			break;
+// 			case 6:
+// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64 & 0x0000FFFFFFFFFFFF);
+// 			break;
+// 			case 7:
+// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64 & 0x00FFFFFFFFFFFFFF);
+// 			break;
+// 			case 8:
+// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64);
+// 			break;
+// 		}
 		//snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016llx}]",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64);
-		offset += BUFFER_OFFSET;
+		offset += current_message_length;
 		
 	}
 }
+
 
 static void createFileName(char file_name[]) {
 	//FRESULT fr;
