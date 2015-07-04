@@ -58,6 +58,7 @@ typedef enum {PRESET_PROCEDURE_OFF,PRESET_PROCEDURE_INIT, PRESET_PROCEDURE_WAITI
 #define BRAKE_PEDAL_IN_THRESHOLD	1600
 
 #define HV_MIN_CELL_VOLTAGE_TORQUE_LIMIT_TRESHOLD 3.65
+#define STOP_BLINKING_LOW_VOLTAGE_LED			  3.40
 #define BATTERY_TEMP_CRITICAL_HIGH 90
 #define MAX_CELL_VOLTAGE_TRESHOLD 4.2
 #define MIN_CELL_VOLTAGE_TRESHOLD 3.2
@@ -225,6 +226,11 @@ typedef struct SensorValuesConvertedToPhysicalValues {
 	
 	uint16_t brake_pressure_fr;
 	uint16_t brake_pressure_fl;
+	float wheel_speed_FL;
+	float wheel_speed_FR;
+	float wheel_speed_RR;
+	float wheel_speed_RL;
+	
 	
 	int16_t steering_enc_data;
 	

@@ -73,6 +73,7 @@ static void vVarConfTimerCallback(TimerHandle_t xTimer);
 static void vMenuUpdateCallback(TimerHandle_t pxTimer);
 static void createAndStartMenuUpdateTimers();
 static void vTSLedTimerCallback(TimerHandle_t pxtimer);
+static void vMinCellVoltageTimerCallback(TimerHandle_t pxTimer);
 static void iAmAliveTimerCallback(TimerHandle_t pxTimer);
 
 //***********************************************************************************
@@ -88,7 +89,7 @@ static void DrawLowVoltageBattery(uint8_t battery_left_percent);
 static void DrawHighVoltageBattery(uint8_t battery_left_percent);
 static void DrawHighVoltageSymbol();
 
-static void DrawSpeedScreen(SensorPhysicalValues *sensorPhysicalValue);
+static void DrawWheelSpeedScreen(SensorPhysicalValues *sensorPhysicalValue);
 static void DrawSystemMonitorScreen(ModuleError *error,SensorPhysicalValues *val);
 static void DrawBatteryInfoScreen(SensorPhysicalValues *tempvolt);
 static void DrawSensorInformationScreen(SensorPhysicalValues *sensorData);
@@ -284,6 +285,7 @@ SemaphoreHandle_t		spi_semaphore	= NULL;
 SemaphoreHandle_t		can_mutex_0		= NULL;
 SemaphoreHandle_t		can_mutex_1		= NULL;
 static TimerHandle_t	TSLedTimer;
+static TimerHandle_t    MinCellVoltageTimer;
 static TimerHandle_t	RTDSTimer;
 static TimerHandle_t	LcTimer;
 static TimerHandle_t	calibrationTimer;
@@ -378,7 +380,8 @@ void dashTask() {
 	LcTimer					= xTimerCreate("lcTimer",	1000/portTICK_RATE_MS,	pdTRUE,		(void *) 1,	vLcTimerCallback);
 	calibrationTimer		= xTimerCreate("CalibTimer",3000/portTICK_RATE_MS,	pdFALSE,	(void *) 1,	vCalibrationTimerCallback);
 	parameterConfTimer		= xTimerCreate("parTimer",	1000/portTICK_RATE_MS,	pdFALSE,	0,			vVarConfTimerCallback);
-	TSLedTimer				= xTimerCreate("TSLed",		300/portTICK_RATE_MS,	pdTRUE,		0,			vTSLedTimerCallback);	
+	TSLedTimer				= xTimerCreate("TSLed",		300/portTICK_RATE_MS,	pdTRUE,		0,			vTSLedTimerCallback);
+	MinCellVoltageTimer		= xTimerCreate("MinCell",	400/portTICK_RATE_MS,	pdTRUE,		0,			vMinCellVoltageTimerCallback);	
 	iAmAliveTimer			= xTimerCreate("iAmAlive",	1000/portTICK_RATE_MS,	pdTRUE,		0,			iAmAliveTimerCallback);
 	xTimerReset(iAmAliveTimer,0);
 	createAndStartMenuUpdateTimers();
@@ -586,7 +589,13 @@ static void dashboardControlFunction(Buttons *btn, ModuleError *error, SensorVal
 				menuUpdate.update_menu = false;
 				DrawIMUScreen(sensorPhysicalValue);
 			}
-			break;
+		break;
+		case SPEED:
+			if (menuUpdate.update_menu == true) {
+				menuUpdate.update_menu = false;
+				DrawWheelSpeedScreen(sensorPhysicalValue);
+			}
+			
 	}
 }
 
@@ -1253,7 +1262,7 @@ static void NavigateMenu(DeviceState *deviceState, ParameterValue *parameter, Mo
 		DrawMainScreen(sensorPhysicalValue,deviceState);
 		break;
 		case SPEED:
-		DrawSpeedScreen(sensorPhysicalValue);
+		DrawWheelSpeedScreen(sensorPhysicalValue);
 		break;
 		case SYSTEM_MONITOR:
 		DrawSystemMonitorScreen(error,sensorPhysicalValue);
@@ -1307,14 +1316,23 @@ static void LEDHandler(SensorPhysicalValues *sensorPhysicalValue, ModuleError *e
 		pio_setOutput(TEMP_LED_PIO,TEMP_LED_PIN,PIN_LOW);
 	}
 	
-	if ( sensorPhysicalValue->min_cell_voltage < HV_MIN_CELL_VOLTAGE_TORQUE_LIMIT_TRESHOLD ) {
-		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_HIGH);
+	if ( (sensorPhysicalValue->min_cell_voltage < HV_MIN_CELL_VOLTAGE_TORQUE_LIMIT_TRESHOLD) && (sensorPhysicalValue->min_cell_voltage > STOP_BLINKING_LOW_VOLTAGE_LED) ) {
+		
+		if (xTimerIsTimerActive(MinCellVoltageTimer) == pdFALSE) {
+			xTimerReset(MinCellVoltageTimer,0);
+		}
 	}
-// 	if ( (sensorPhysicalValue->battery_voltage > BATTERY_PACK_MAX_VOLTAGE_TRESHOLD) || (sensorPhysicalValue->battery_voltage < BATTERY_PACK_MIN_VOLTAGE_TRESHOLD) ) {
-// 		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_HIGH);
-// 	}
+	else if (sensorPhysicalValue->min_cell_voltage <= STOP_BLINKING_LOW_VOLTAGE_LED) {
+		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_HIGH);
+		if (xTimerIsTimerActive(MinCellVoltageTimer) == pdTRUE) {
+			xTimerStop(MinCellVoltageTimer,0);
+		}
+	}
 	else {
 		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_LOW);
+		if (xTimerIsTimerActive(MinCellVoltageTimer) == pdTRUE) {
+			xTimerStop(MinCellVoltageTimer,0);
+		}
 	}
 	
 // 	if (error->ecu_error != 0) {
@@ -1593,9 +1611,16 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 				sensorPhysicalValue->torque_encoder_ch1 = ReceiveMsg.data.u8[0] << 8 | ReceiveMsg.data.u8[1];
 			break;	
 			case ID_SPEED_FL:
+				sensorPhysicalValue->wheel_speed_FL = (float) ( ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100);
+			break;
 			case ID_SPEED_FR:
+				sensorPhysicalValue->wheel_speed_FR = (float) ( ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100);
+			break;
 			case ID_SPEED_RR:
+				sensorPhysicalValue->wheel_speed_RR = (float) ( ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100);
+			break;
 			case ID_SPEED_RL:
+				sensorPhysicalValue->wheel_speed_RL = (float) ( ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100);
 			break;
 			case ID_TEMP_COOLING:
 				sensorPhysicalValue->cooling_temperature = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100;
@@ -2014,6 +2039,14 @@ static void vMenuUpdateCallback(TimerHandle_t pxTimer) {
 		
 	}
 }
+static void vMinCellVoltageTimerCallback(TimerHandle_t pxTimer) {
+	if (pio_readPin(VOLT_LED_PIO,VOLT_LED_PIN) == 1) {
+		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN,PIN_LOW);
+	}
+	else {
+		pio_setOutput(VOLT_LED_PIO,VOLT_LED_PIN, PIN_HIGH);
+	}
+}
 static void vTSLedTimerCallback(TimerHandle_t pxtimer){
 	if (pio_readPin(TS_LED_PIO,TS_LED_PIN) == 1) {
 		pio_setOutput(TS_LED_PIO,TS_LED_PIN,PIN_LOW);
@@ -2418,10 +2451,26 @@ static void DrawHighVoltageBattery(uint8_t battery_left_percent) {
 	//cmd_exec();
 }
 
-static void DrawSpeedScreen(SensorPhysicalValues *sensorPhysicalValue) {
+static void DrawWheelSpeedScreen(SensorPhysicalValues *sensorPhysicalValue) {
 	cmd(CMD_DLSTART);
 	cmd(CLEAR(1, 1, 1)); // clear screen
-	cmd_text(240,140,31,OPT_CENTER,"120");
+	
+	uint8_t f_nr = 25;
+	cmd(COLOR_RGB(255,255,255));
+	cmd_text(240,15,30,OPT_CENTER,"WHEEL SPEEDS");
+	cmd_text(60, 60, 26, OPT_CENTER, "FL");
+	Draw4DigitFloat(50,90,f_nr,sensorPhysicalValue->wheel_speed_FL);
+	
+	cmd_text(180, 60, 26, OPT_CENTER, "FR");
+	Draw4DigitFloat(170,90,f_nr,sensorPhysicalValue->wheel_speed_FR);
+	
+	
+	cmd_text(60, 130, 26, OPT_CENTER, "RL");
+	Draw4DigitFloat(50,160,f_nr,sensorPhysicalValue->wheel_speed_RL);
+	
+	cmd_text(180, 130, 26, OPT_CENTER, "RR" );
+	Draw4DigitFloat(170,160,f_nr,sensorPhysicalValue->wheel_speed_RR);
+	
 	cmd(DISPLAY()); // display the image
 	cmd(CMD_SWAP);
 	cmd_exec();
