@@ -831,6 +831,13 @@ static void changeCarState(ConfirmationMsgs *confMsg, StatusMsg *status, SensorP
 				confMsg->lc_off = false;
 				carState = DRIVE_ENABLED;
 			}
+			else if (status->shut_down_circuit_closed == false) {
+				carState = TRACTIVE_SYSTEM_OFF;
+			}
+			else if (confMsg->drive_disabled_confirmed == true) {
+				carState = TRACTIVE_SYSTEM_ON;
+				confMsg->drive_disabled_confirmed = false;
+			}
 			break;	
 	}
 }
@@ -1064,6 +1071,7 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 			can_freeRTOSSendMessage(CAN1,RequestLCInit);
 		}
 		else if (carState == LC_ARMED) {
+			
 			can_freeRTOSSendMessage(CAN1,RequestLCDisable);
 		}
 	}
@@ -2201,6 +2209,11 @@ static void DrawMainScreen(SensorPhysicalValues *sensor,DeviceState *devices) {
 			cmd_text(190,145,text_font,OPT_FLAT, "ON"); // Launch control
 			break;
 	}
+	if (SD_card_is_full) {
+		cmd(COLOR_RGB(255,0,0));
+		cmd_text(15,190,text_font,OPT_FLAT,"SD CARD FULL");
+	}
+	
 	if (tractionControlState == TRACTION_CONTROL_ON) {
 		cmd(COLOR_RGB(0,255,0));
 		cmd_text(190,100,text_font,OPT_FLAT, "ON");
@@ -3851,7 +3864,7 @@ static void DrawDataloggerInterface() {
 			cmd_text(x_position_status_text,200,font_size,OPT_FLAT,"USB NOT CONNECTED");
 			
 			if (SD_card_is_full) {
-				cmd_text(x_position_status_text,80,font_size,OPT_FLAT,"SD CARD IS FULL");
+				cmd_text(x_position_status_text,150,font_size,OPT_FLAT,"SD CARD IS FULL");
 			}
 		break;
 

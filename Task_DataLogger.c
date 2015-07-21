@@ -240,37 +240,6 @@ static void logDataToCurrentFile() {
 		snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%s}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID,can_data_string);
 		
 		*can_data_string = 0;
-		
-// 		switch (SensorPacketReceive.can_msg.dataLength) {
-// 			case 0:
-// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%x}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID,0);
-// 			break;
-// 			case 1:
-// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%x}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u8[0]);
-// 			break;
-// 			case 2:
-// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%x}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u16[0]);
-// 			break;
-// 			case 3:
-// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%lx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u32[0]	& 0x00FFFFFF);
-// 			break;
-// 			case 4:
-// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%lx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u32[0]);
-// 			break;
-// 			case 5:
-// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64 & 0x000000FFFFFFFFFF);
-// 			break;
-// 			case 6:
-// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64 & 0x0000FFFFFFFFFFFF);
-// 			break;
-// 			case 7:
-// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64 & 0x00FFFFFFFFFFFFFF);
-// 			break;
-// 			case 8:
-// 			snprintf(dataLogger_buffer + offset, current_message_length,"[%08lx,{%03lx:%llx}]\n",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64);
-// 			break;
-// 		}
-		//snprintf(dataLogger_buffer + offset, BUFFER_OFFSET,"[%08lx,{%03lx:%016llx}]",SensorPacketReceive.time_stamp, SensorPacketReceive.can_msg.messageID, SensorPacketReceive.can_msg.data.u64);
 		offset += current_message_length;
 		
 	}
