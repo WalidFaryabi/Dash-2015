@@ -204,19 +204,22 @@ static void logDataToCurrentFile() {
 			file_size_byte_counter	+= 1;
 			preallocation_counter	+= 1;
 			taskENTER_CRITICAL();
-			start_time = RTT->RTT_VR;				
-			if ( f_write(&file_object,dataLogger_buffer, BUFFER_LENGTH, &byte_written) == FR_OK ) {
-				stop_time = RTT->RTT_VR;
-				f_sync(&file_object);
+			start_time = RTT->RTT_VR;
+			//In case of *bw is less than btw, it means the volume got full during the write operation
+			f_write(&file_object,dataLogger_buffer, BUFFER_LENGTH, &byte_written);
+			if ( byte_written < BUFFER_LENGTH) {
+				// DISK IS FULL !!
+				dataloggerState = DATALOGGER_IDLE;
 				*dataLogger_buffer = 0;
+				stop_time = RTT->RTT_VR;
 				taskEXIT_CRITICAL();
 			}
 			else {
 				stop_time = RTT->RTT_VR;
+				f_sync(&file_object);
 				*dataLogger_buffer = 0;
-				dataloggerState = DATALOGGER_IDLE;
 				taskEXIT_CRITICAL();
-			}			
+			}		
 			//benchmsg.data.u32[0] = (BUFFER_LENGTH)/(stop_time-start_time);
 			//can_sendMessage(CAN0,benchmsg);
 		}
