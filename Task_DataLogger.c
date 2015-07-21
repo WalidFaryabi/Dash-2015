@@ -205,11 +205,18 @@ static void logDataToCurrentFile() {
 			preallocation_counter	+= 1;
 			taskENTER_CRITICAL();
 			start_time = RTT->RTT_VR;				
-			f_write(&file_object,dataLogger_buffer, BUFFER_LENGTH, &byte_written);
-			stop_time = RTT->RTT_VR;
-			f_sync(&file_object);
-			
-			taskEXIT_CRITICAL();
+			if ( f_write(&file_object,dataLogger_buffer, BUFFER_LENGTH, &byte_written) == FR_OK ) {
+				stop_time = RTT->RTT_VR;
+				f_sync(&file_object);
+				*dataLogger_buffer = 0;
+				taskEXIT_CRITICAL();
+			}
+			else {
+				stop_time = RTT->RTT_VR;
+				*dataLogger_buffer = 0;
+				dataloggerState = DATALOGGER_IDLE;
+				taskEXIT_CRITICAL();
+			}			
 			//benchmsg.data.u32[0] = (BUFFER_LENGTH)/(stop_time-start_time);
 			//can_sendMessage(CAN0,benchmsg);
 		}

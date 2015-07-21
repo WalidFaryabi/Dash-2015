@@ -72,6 +72,12 @@ struct CanMessage RequestLCArmed = {
 	.data.u8[0] = 2
 };
 
+struct CanMessage RequestLCDisable = {
+	.messageID = ID_ECU_LC,
+	.dataLength = 1,
+	.data.u8[0] = 0x03
+};
+
 struct CanMessage TurnOffPump = {
 	.messageID = ID_FAN_CONTROL,
 	.dataLength = 3,

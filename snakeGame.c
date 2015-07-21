@@ -215,7 +215,8 @@ static void moveSnake(int8_t dx, int8_t dy) {
 	else if (gameMap[newHeadSegment.y_pos][newHeadSegment.x_pos] == FOOD ) {
 		generateFood();
 		if (gameSpeed >= 50) {
-			gameSpeed -= 0.5*(100 - 3*snake_score);
+			gameSpeed = gameSpeed - 15;
+			//gameSpeed -= 0.5*(100 - 3*snake_score);
 		}
 		snake_score += 1;
 		xTimerChangePeriod(snakeUpdateTimer,gameSpeed/portTICK_RATE_MS,200/portTICK_RATE_MS);

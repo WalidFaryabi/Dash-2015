@@ -821,121 +821,18 @@ static void changeCarState(ConfirmationMsgs *confMsg, StatusMsg *status, SensorP
 				carState = TRACTIVE_SYSTEM_ON;
 				confMsg->drive_disabled_confirmed = false;
 			}
-			else if (confMsg->lc_request_confirmed == true) {
-				carState = LC_PROCEDURE;
-				// Go to the menu element for launch control. This is done so that handlebuttons etc can run without any problems
-				selected = LC_HANDLER_POS; 
-				confMsg->lc_request_confirmed = false;
-			}
-			
-			break;
-		case LC_PROCEDURE:
-			DrawLaunchControlProcedure();
-			//if ( (getTorquePedalPosition(sensorPhysicalValue) == PEDAL_IN) && (getBrakePedalPosition(sensorPhysicalValue) == PEDAL_IN) ) {
-			if ( btn.btn_type == PUSH_ACK) {
-				carState = LC_STANDBY;
-				
-				btn.btn_type = NONE_BTN;
-				btn.unhandledButtonAction = false;
-			}
-			//}
-			//else if (getTorquePedalPosition(sensorPhysicalValue) == false) {
-			//	carState = DRIVE_ENABLED;
-			//}
-			else if (status->shut_down_circuit_closed == false) {
-				carState = TRACTIVE_SYSTEM_OFF;
-			}
-			else if (confMsg->drive_disabled_confirmed == true) {
-				can_sendMessage(CAN0,EcuParametersFromFile);
-				carState = TRACTIVE_SYSTEM_ON;
-				confMsg->drive_disabled_confirmed = false;
-			}
-			else if (btn.btn_type == LAUNCH_CONTROL) {
-				carState = LC_ABORTED;
-				btn.btn_type = NONE_BTN;
-				btn.unhandledButtonAction = false;
-			}
-			break;
-		
-		case LC_STANDBY:
-			
-			if ( (getBrakePedalPosition(sensorPhysicalValue) == PEDAL_OUT) && (getTorquePedalPosition(sensorPhysicalValue) == PEDAL_IN) ) {
-				carState = LC_COUNTDOWN;
-				xTimerStart(LcTimer,1000/portTICK_RATE_MS);
-				lc_timer_count = 0;
-			}
-			else if (getTorquePedalPosition(sensorPhysicalValue) == PEDAL_OUT) {
-				carState = LC_ABORTED;
-			}
-			else if (btn.btn_type == LAUNCH_CONTROL) {
-				carState = LC_ABORTED;
-				btn.btn_type = NONE_BTN;
-				btn.unhandledButtonAction = false;
-			}
-			break;
-		case LC_COUNTDOWN:
-			DrawLaunchControlProcedure();
-			//if (getBrakePedalPosition(sensorPhysicalValue) == PEDAL_OUT) && (getTorquePedalPosition(sensorPhysicalValue) == PEDAL_IN) {
-				if (lc_timer_count == 5) {
-					carState = LC_WAITING_FOR_ECU_TO_ARM_LC;
-					xTimerReset(LcTimer,5/portTICK_RATE_MS);
-					lc_timer_count = 0;
-					//Send can message that countdown is finished
-					can_freeRTOSSendMessage(CAN1,RequestLCArmed);
-				}
-			//}
-			/*else {
-				xTimerStop(LcTimer,5/portTICK_RATE_MS);
-				lc_timer_count = 0;
-				carState = LC_ABORTED;
-			}*/
-			break;		
-		case LC_WAITING_FOR_ECU_TO_ARM_LC:
-			if (confMsg->lc_ready == true) {
-				confMsg->lc_ready = false;
+			else if (confMsg->lc_ready == true) {
 				carState = LC_ARMED;
-				xTimerStop(LcTimer,0);
-				lc_timer_count = 0;
+				confMsg->lc_ready = false;
 			}
-			else if (lc_timer_count > 2) {
-				carState = LC_ARMING_TIMED_OUT;
-				lc_timer_count = 0;
-				xTimerStop(LcTimer,0);
-			}
-			break;
+			break;	
 		case LC_ARMED:
-			DrawLaunchControlProcedure();
-			//DrawMainScreen()
 			if (confMsg->lc_off == true) {
 				confMsg->lc_off = false;
 				carState = DRIVE_ENABLED;
-				selected = 0;
-				//should display main screen
 			}
-			//if (getTorquePedalPosition(sensorPhysicalValue) == false) {
-			//	carState = DRIVE_ENABLED;
-			//	selected = 0;
-			//}
-			break;
-		case LC_ABORTED:
-			DrawLaunchControlProcedure();
-			if ( btn.btn_type == PUSH_ACK) {
-				carState = DRIVE_ENABLED;
-				selected = 0;
-				btn.btn_type = NONE_BTN;
-				btn.unhandledButtonAction = false;
-			}
-		break;
-		case LC_ARMING_TIMED_OUT:
-			DrawLaunchControlProcedure();
-			if ( btn.btn_type == PUSH_ACK) {
-				carState = DRIVE_ENABLED;
-				selected = 0;
-				btn.btn_type = NONE_BTN;
-				btn.unhandledButtonAction = false;
-			}
-		break;
-	}					
+			break;	
+	}
 }
 
 static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysicalValue ,DeviceState *deviceState, 
@@ -1161,11 +1058,13 @@ static void HandleButtonActions(Buttons *btn, SensorPhysicalValues *sensorPhysic
 		}
 	}
 	else if (btn->btn_type == LAUNCH_CONTROL) {
-		if (carState == DRIVE_ENABLED) {
+		if ( (carState == DRIVE_ENABLED) && (getTorquePedalPosition(sensorPhysicalValue) == PEDAL_OUT) && (getBrakePedalPosition(sensorPhysicalValue) == PEDAL_IN) )  {
 			//Request Launch control from ECU
 			//Send CAN message
 			can_freeRTOSSendMessage(CAN1,RequestLCInit);
-
+		}
+		else if (carState == LC_ARMED) {
+			can_freeRTOSSendMessage(CAN1,RequestLCDisable);
 		}
 	}
 	else if (btn->btn_type == ROTARY) {
@@ -1295,6 +1194,12 @@ static void NavigateMenu(DeviceState *deviceState, ParameterValue *parameter, Mo
 }
 
 static void LEDHandler(SensorPhysicalValues *sensorPhysicalValue, ModuleError *error,DeviceState *devices) {
+	if (carState == LC_ARMED) {
+		pio_setOutput(LC_LED_PIO,LC_LED_PIN,PIN_HIGH);
+	}
+	else {
+		pio_setOutput(LC_LED_PIO,LC_LED_PIN,PIN_LOW);
+	}
 	if (error->ams_error == true) {
 		pio_setOutput(AMS_LED_PIO,AMS_LED_PIN,PIN_HIGH);
 	}
@@ -1476,7 +1381,6 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 					error->ams_error = false;
 				}
 			break;
-			
 			case ID_ECU_CAR_STATES:
 				switch (ReceiveMsg.data.u8[0]) {
 					case 0x01:
