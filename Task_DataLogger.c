@@ -43,19 +43,6 @@ struct SensorMsg SensorPacketReceive = {
 	.time_stamp = 0
 };
 
-struct CanMessage txmsg = {
-	.data.u8[0] = 10,
-	.data.u8[1] = 5,
-	.dataLength = 2,
-	.messageID = 10
-};
-struct CanMessage benchmsg = {
-	.data.u64 = 0,
-	.dataLength = 8,
-	.messageID = 510
-};
-
-
 static char dataLogger_buffer[BUFFER_LENGTH] = "";
 static char can_data_string[17] = "";
 
@@ -67,8 +54,9 @@ UINT byte_written;
 static uint32_t timeStamp = 0;
 static uint32_t offset = 0;
 static uint8_t current_message_length = 0;
- 
 
+ 
+uint8_t SD_card_is_full = 0;
 uint32_t file_size_byte_counter = 0;
 uint8_t number_of_files_sdcard = 0;
 static uint32_t preallocation_counter = 0;
@@ -212,6 +200,7 @@ static void logDataToCurrentFile() {
 				dataloggerState = DATALOGGER_IDLE;
 				*dataLogger_buffer = 0;
 				stop_time = RTT->RTT_VR;
+				SD_card_is_full = 1;
 				taskEXIT_CRITICAL();
 			}
 			else {

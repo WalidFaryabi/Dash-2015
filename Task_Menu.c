@@ -3849,6 +3849,10 @@ static void DrawDataloggerInterface() {
 			cmd_text(x_position_status_text,50,font_size,OPT_FLAT,"FILES:");
 			cmd_number(390,50,font_size,OPT_FLAT, number_of_files_sdcard);
 			cmd_text(x_position_status_text,200,font_size,OPT_FLAT,"USB NOT CONNECTED");
+			
+			if (SD_card_is_full) {
+				cmd_text(x_position_status_text,80,font_size,OPT_FLAT,"SD CARD IS FULL");
+			}
 		break;
 
 		case DATALOGGER_LOGGING:
