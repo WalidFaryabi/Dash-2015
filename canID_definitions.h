@@ -35,6 +35,7 @@
 #define ID_IN_ECU_SELECTED_PRESET	0x235
 
 #define ID_BSPD_STATUS				0x668
+#define ID_BSPD_TRIGGERED			0x669
 #define ID_IMD_STATUS				0x670
 #define ID_FAN_STATUS				0x682
 

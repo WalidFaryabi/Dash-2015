@@ -152,6 +152,7 @@ void CAN0_Handler() {
 				case ID_DAMPER_RR:
 				case ECU_CURRENT_IMPLAUSIBILITY_DATA:
 				case ID_BSPD_STATUS:
+				case ID_BSPD_TRIGGERED:
 				case ID_IMD_STATUS:
 				case ID_FAN_STATUS:
 				case ID_IMD_SHUTDOWN:
@@ -256,6 +257,7 @@ void CAN1_Handler() {
 				case ID_IMD_SHUTDOWN:
 				case ECU_CURRENT_IMPLAUSIBILITY_DATA:
 				case ID_BSPD_STATUS:
+				case ID_BSPD_TRIGGERED:
 				case ID_IMD_STATUS:
 					xQueueSendToBackFromISR(xDashQueue,&message,NULL);
 				break;
