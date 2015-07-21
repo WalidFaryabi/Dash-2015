@@ -170,6 +170,7 @@ typedef struct ModuleErrorsReceivedOverCan{
 	uint16_t BMS_state_vector;
 	uint32_t inverter_data_status;
 	uint8_t bspd_status;
+	bool bspd_error;
 	uint8_t ECU_implausibility;
 	uint8_t IMD_status;
 	bool ams_error; // Assume there will be sent msgs for NOTOK and OK

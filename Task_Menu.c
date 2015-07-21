@@ -1342,7 +1342,7 @@ static void LEDHandler(SensorPhysicalValues *sensorPhysicalValue, ModuleError *e
 // 		pio_setOutput(ECU_LED_PIO,ECU_LED_PIN,PIN_LOW);
 // 	}
 // 	
-	if (  !(error->bspd_status & BSPD_SHUTDOWN_NOT_ACTIVE)   || (error->ECU_implausibility == ECU_TPS_BPS_IMPLAUSIBILITY) ) {
+	if (  !(error->bspd_status & BSPD_SHUTDOWN_NOT_ACTIVE)   || (error->ECU_implausibility == ECU_TPS_BPS_IMPLAUSIBILITY) || (error->bspd_error)) {
 		pio_setOutput(DEVICE_LED_PIO,DEVICE_LED_PIN,PIN_HIGH);
 	}
 	else {
@@ -1414,6 +1414,9 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 			
 			case ID_BSPD_STATUS:
 				error->bspd_status = ReceiveMsg.data.u8[0];
+			break;
+			case ID_BSPD_TRIGGERED:
+				error->bspd_error = true;
 			break;
 			case ID_IMD_STATUS:
 				error->IMD_status = ReceiveMsg.data.u8[0];
@@ -2146,6 +2149,7 @@ static void initErrorMessagesStruct(ModuleError *error) {
 	error->ecu_error   = 0;
 	error->bms_fault   = 0;
 	error->bms_warning = 0;
+	error->bspd_error = false;
 }
 static void initParameterStruct(ParameterValue *parameter) {
 	parameter->min_torque = 0;
