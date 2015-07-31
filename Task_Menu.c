@@ -1526,16 +1526,16 @@ static void getDashMessages(ParameterValue *parameter, ConfirmationMsgs *confMsg
 				sensorPhysicalValue->torque_encoder_ch1 = ReceiveMsg.data.u8[0] << 8 | ReceiveMsg.data.u8[1];
 			break;	
 			case ID_SPEED_FL:
-				sensorPhysicalValue->wheel_speed_FL = (float) ( ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100);
+				sensorPhysicalValue->wheel_speed_FL = (float) ( ( (ReceiveMsg.data.u8[1] << 8) | ReceiveMsg.data.u8[0]) / (float) 100);
 			break;
 			case ID_SPEED_FR:
-				sensorPhysicalValue->wheel_speed_FR = (float) ( ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100);
+				sensorPhysicalValue->wheel_speed_FR = (float) ( ( (ReceiveMsg.data.u8[1] << 8) | ReceiveMsg.data.u8[0]) / (float) 100);
 			break;
 			case ID_SPEED_RR:
-				sensorPhysicalValue->wheel_speed_RR = (float) ( ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100);
+				sensorPhysicalValue->wheel_speed_RR = (float) ( ( (ReceiveMsg.data.u8[1] << 8) | ReceiveMsg.data.u8[0]) / (float) 100);
 			break;
 			case ID_SPEED_RL:
-				sensorPhysicalValue->wheel_speed_RL = (float) ( ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100);
+				sensorPhysicalValue->wheel_speed_RL = (float) ( ( (ReceiveMsg.data.u8[1] << 8) | ReceiveMsg.data.u8[0]) / (float) 100);
 			break;
 			case ID_TEMP_COOLING:
 				sensorPhysicalValue->cooling_temperature = ( (ReceiveMsg.data.u8[0] << 8) | ReceiveMsg.data.u8[1]) / (float) 100;
